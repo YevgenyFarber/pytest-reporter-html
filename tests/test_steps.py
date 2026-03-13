@@ -4,6 +4,7 @@ from pytest_reporter_html import step
 
 logger = get_logger(__name__)
 
+
 def test_user_lifecycle():
     with step("Create user"):
         logger.info("Creating a new user with role 'user'")
