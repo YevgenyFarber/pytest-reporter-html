@@ -3,19 +3,15 @@
 from __future__ import annotations
 
 import json
-import os
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import patch
 
-from pytest_reporter_html.html_report import (
-    RunInfo,
-    _calculate_try_numbers,
-    _find_all_runs,
+from pytest_reporter_html.helpers import (
     _format_timestamp_hms,
     _format_ts,
+)
+from pytest_reporter_html.html_report import (
     _parse_test_result,
-    _resolve_timestamp,
     generate_report,
 )
 
@@ -85,33 +81,6 @@ class TestFormatTimestampHms:
 
 
 # ---------------------------------------------------------------------------
-# _resolve_timestamp
-# ---------------------------------------------------------------------------
-
-
-class TestResolveTimestamp:
-    def test_uses_env_var_when_set_to_millis(self) -> None:
-        epoch_ms = 1_700_000_000_000
-        expected_dt = datetime.fromtimestamp(epoch_ms / 1000.0)
-        expected = _format_ts(expected_dt)
-        with patch.dict("os.environ", {"REPORT_TIMESTAMP": str(epoch_ms)}):
-            result = _resolve_timestamp()
-        assert result == expected, f"Expected {expected!r}, got {result!r}"
-
-    def test_uses_env_var_when_set_to_string(self) -> None:
-        with patch.dict("os.environ", {"REPORT_TIMESTAMP": "my-custom-ts"}):
-            result = _resolve_timestamp()
-        assert result == "my-custom-ts", f"Expected 'my-custom-ts', got {result!r}"
-
-    def test_falls_back_to_current_time_when_env_not_set(self) -> None:
-        with patch.dict("os.environ", {}, clear=False):
-            os.environ.pop("REPORT_TIMESTAMP", None)
-            result = _resolve_timestamp()
-        assert result, "Expected a non-empty timestamp string"
-        assert "." in result, f"Expected formatted timestamp with dots, got {result!r}"
-
-
-# ---------------------------------------------------------------------------
 # _parse_test_result
 # ---------------------------------------------------------------------------
 
@@ -174,65 +143,6 @@ class TestParseTestResult:
         result = _parse_test_result("empty.json", data)
         assert result.filename == "empty.json", f"filename should be 'empty.json', got {result.filename!r}"
         assert not result.steps, "Steps should be empty list"
-
-    def test_parses_http_request_count(self) -> None:
-        data = {
-            "testStatus": "PASSED",
-            "steps": [
-                {
-                    "name": "test",
-                    "startTime": 1_700_000_000_000,
-                    "endTime": 1_700_000_001_000,
-                    "status": "PASSED",
-                    "events": [
-                        {"level": "INFO", "event": "HTTP Request: GET /api"},
-                        {"level": "INFO", "event": "regular log"},
-                    ],
-                }
-            ],
-        }
-        result = _parse_test_result("test.json", data)
-        assert result.httpRequestCount == 1, f"Expected 1 HTTP request, got {result.httpRequestCount}"
-
-
-# ---------------------------------------------------------------------------
-# _find_all_runs / _calculate_try_numbers
-# ---------------------------------------------------------------------------
-
-
-class TestFindAllRuns:
-    def test_finds_report_html_files(self, tmp_path: Path) -> None:
-        (tmp_path / "TestReport_All_2024.01.01_00.00.00.000.html").write_text("", encoding="utf-8")
-        (tmp_path / "TestReport_All_2024.01.02_00.00.00.000.html").write_text("", encoding="utf-8")
-        (tmp_path / "unrelated.html").write_text("", encoding="utf-8")
-
-        runs = _find_all_runs(tmp_path)
-        assert len(runs) == 2, f"Expected 2 runs, got {len(runs)}: {[r.fileName for r in runs]}"
-
-    def test_runs_sorted_newest_first(self, tmp_path: Path) -> None:
-        (tmp_path / "TestReport_All_2024.01.01_00.00.00.000.html").write_text("", encoding="utf-8")
-        (tmp_path / "TestReport_All_2024.06.15_12.00.00.000.html").write_text("", encoding="utf-8")
-
-        runs = _find_all_runs(tmp_path)
-        assert (
-            runs[0].timestamp > runs[1].timestamp
-        ), f"First run should be newer: {runs[0].timestamp!r} vs {runs[1].timestamp!r}"
-
-    def test_empty_dir_returns_no_runs(self, tmp_path: Path) -> None:
-        runs = _find_all_runs(tmp_path)
-        assert not runs, f"Expected empty list, got {runs}"
-
-
-class TestCalculateTryNumbers:
-    def test_assigns_sequential_try_numbers(self) -> None:
-        runs = [RunInfo(), RunInfo(), RunInfo()]
-        _calculate_try_numbers(runs)
-        assert [r.tryNumber for r in runs] == [3, 2, 1], f"Expected [3, 2, 1], got {[r.tryNumber for r in runs]}"
-
-    def test_single_run_gets_try_number_one(self) -> None:
-        runs = [RunInfo()]
-        _calculate_try_numbers(runs)
-        assert runs[0].tryNumber == 1, f"Expected try 1, got {runs[0].tryNumber}"
 
 
 # ---------------------------------------------------------------------------
