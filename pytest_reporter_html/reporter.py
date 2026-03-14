@@ -56,6 +56,7 @@ class ReportStep:
     name: str = ""
     status: str = "PASSED"
     events: list[ReportEvent] = field(default_factory=list)
+    sub_steps: list[ReportStep] = field(default_factory=list)
     failureMessage: str | None = None
     stackTrace: str | None = None
 
@@ -67,6 +68,8 @@ class ReportStep:
             "status": self.status,
             "events": [e.to_dict() for e in self.events],
         }
+        if self.sub_steps:
+            d["subSteps"] = [s.to_dict() for s in self.sub_steps]
         if self.failureMessage is not None:
             d["failureMessage"] = self.failureMessage
         if self.stackTrace is not None:
@@ -128,7 +131,8 @@ class TestReporter:
         self._timestamp = os.environ.get("REPORT_TIMESTAMP", "").strip() or str(_now_millis())
         self._report = JsonReport(className=class_name)
         self._current_step: ReportStep | None = None
-        self._step_counter = 0
+        self._step_stack: list[ReportStep] = []
+        self._number_parts: list[int] = [0]
         self._is_phase = False
 
     @property
@@ -145,14 +149,23 @@ class TestReporter:
 
     @property
     def step_counter(self) -> int:
-        return self._step_counter
+        return self._number_parts[0] if self._number_parts else 0
 
     def begin_step(self, name: str) -> None:
-        self._close_step()
-        self._step_counter += 1
+        if self._is_phase:
+            self._close_step()
+        if self._current_step is not None:
+            self._step_stack.append(self._current_step)
+        depth = len(self._step_stack)
+        while len(self._number_parts) <= depth:  # pylint: disable=W0149
+            self._number_parts.append(0)
+        for i in range(depth + 1, len(self._number_parts)):
+            self._number_parts[i] = 0
+        self._number_parts[depth] += 1
+        number = ".".join(str(self._number_parts[i]) for i in range(depth + 1))
         self._current_step = ReportStep(
             startTime=_now_millis(),
-            name=f"Step {self._step_counter:02d}: {name}",
+            name=f"Step {number}: {name}",
         )
         self._is_phase = False
 
@@ -221,9 +234,14 @@ class TestReporter:
             self._current_step.status = "FAILED"
             self._current_step.failureMessage = failure_message
             self._current_step.stackTrace = stack_trace
-        self._report.steps.append(self._current_step)
-        self._current_step = None
-        self._is_phase = False
+        if self._step_stack:
+            parent = self._step_stack.pop()
+            parent.sub_steps.append(self._current_step)
+            self._current_step = parent
+        else:
+            self._report.steps.append(self._current_step)
+            self._current_step = None
+            self._is_phase = False
 
     def _write(self) -> str | None:
         try:

@@ -52,6 +52,7 @@ class TestStep:
     failureMessage: str | None = None
     stackTrace: str | None = None
     events: list[TestEvent] = field(default_factory=list)
+    sub_steps: list[TestStep] = field(default_factory=list)
 
 
 @dataclass
@@ -161,7 +162,7 @@ def _parse_test_result(filename: str, root: dict) -> TestResult:
     result.startTime = first.get("startTime", 0)
     result.status = root.get("testStatus", first.get("status", "PASSED"))
 
-    for step_data in steps_data:
+    def _load_step(step_data: dict) -> TestStep:
         ts = TestStep(
             name=step_data.get("name", ""),
             startTime=step_data.get("startTime", 0),
@@ -176,7 +177,6 @@ def _parse_test_result(filename: str, root: dict) -> TestResult:
                     result.failureMessage = ts.failureMessage
                 if ts.stackTrace and not result.stackTrace:
                     result.stackTrace = ts.stackTrace
-
         for ev_data in step_data.get("events", []):
             ts.events.append(
                 TestEvent(
@@ -188,8 +188,12 @@ def _parse_test_result(filename: str, root: dict) -> TestResult:
                 )
             )
             result.eventCount += 1
+        for sub_data in step_data.get("subSteps", []):
+            ts.sub_steps.append(_load_step(sub_data))
+        return ts
 
-        result.steps.append(ts)
+    for step_data in steps_data:
+        result.steps.append(_load_step(step_data))
 
     if root.get("failureMessage"):
         result.failureMessage = root["failureMessage"]
@@ -204,6 +208,97 @@ def _parse_test_result(filename: str, root: dict) -> TestResult:
 # ---------------------------------------------------------------------------
 # Rendering
 # ---------------------------------------------------------------------------
+
+
+def _render_step_block(
+    step: TestStep,
+    step_id: str,
+    step_icon_id: str,
+    auto_open: bool,
+) -> list[str]:
+    has_events = bool(step.events)
+    has_sub = bool(step.sub_steps)
+    if not has_events and not has_sub and step.status == "PASSED":
+        return []
+
+    step_status = "step-passed" if step.status == "PASSED" else "step-failed"
+    step_open = (has_events or has_sub) and auto_open
+    open_cls = " open" if step_open else ""
+
+    h: list[str] = [
+        f"<div class='step {step_status}'>\n",
+        f"<div class='step-header' onclick='toggleStep(\"{step_id}\", \"{step_icon_id}\")'>\n",
+        f"<span class='step-toggle-icon{open_cls}' id='{step_icon_id}'>&#9654;</span>\n",
+        f"<span class='step-name'>{_escape_html(step.name)}</span>\n",
+    ]
+    if step.events:
+        h.append(f"<span class='step-event-count'>{len(step.events)}</span>\n")
+    if (dur_ms := step.endTime - step.startTime) > 0:
+        h.append(f"<span class='step-duration'>{dur_ms}ms</span>\n")
+    h += [
+        f"<span class='step-time'>{_format_timestamp_hms(step.startTime)}</span>\n",
+        "</div>\n",
+    ]
+
+    step_display = "block" if step_open else "none"
+    h.append(f"<div class='step-events' id='{step_id}' style='display: {step_display};'>\n")
+
+    for ei, ev in enumerate(step.events):
+        ev_class = f"event-{ev.level.lower()}"
+        uid = f"{step_id}-{ei}"
+        h.append(f"<div class='event {ev_class}' data-event-level='{ev.level}'>\n")
+        h.append(f"<span class='event-level'>{ev.level}</span>\n")
+
+        if ev.sourceFileName or ev.sourceLineNumber is not None:
+            loc_parts = []
+            if ev.sourceFileName:
+                loc_parts.append(_escape_html(ev.sourceFileName))
+            if ev.sourceLineNumber is not None:
+                if ev.sourceFileName:
+                    loc_parts.append(":")
+                loc_parts.append(str(ev.sourceLineNumber))
+            h.append(f"<span class='event-source-location'>{''.join(loc_parts)}</span>\n")
+
+        if ev.type == "json":
+            pretty = _try_pretty_json(ev.event)
+            display_j = _format_json_for_display(pretty if pretty else ev.event)
+            data_orig = _escape_html(ev.event).replace("'", "&#39;")
+            h += [
+                "<div class='json-container'>\n",
+                "<div class='json-header'>\n",
+                "<span class='json-label'>JSON</span>\n",
+                f"<button class='copy-btn' onclick='copyToClipboard(\"{uid}\")'>&#128203;</button>\n",
+                "</div>\n",
+                f"<pre class='event-json' id='json-{uid}' data-original='{data_orig}'>{display_j}</pre>\n",
+                "</div>\n",
+            ]
+        elif ev.event.startswith("Stack Trace:"):
+            st_content = ev.event[len("Stack Trace:") :].strip()
+            h += [
+                "<div class='event-stacktrace-section'>\n",
+                f"<div class='event-stacktrace-toggle' onclick='toggleEventStackTrace(\"{uid}\")'>\n",
+                f"<span class='event-stacktrace-icon open' id='event-stacktrace-icon-{uid}'>&#9654;</span>\n",
+                "<strong>Stack Trace</strong>\n",
+                "</div>\n",
+                f"<pre class='event-stacktrace-content' id='event-stacktrace-{uid}' style='display: block;'>"
+                f"{_escape_html(st_content)}</pre>\n",
+                "</div>\n",
+            ]
+        elif "\nTraceback (most recent call last):" in ev.event:
+            h.append(_render_event_with_traceback(ev.event, uid))
+        else:
+            h.append(_format_event_with_json(ev.event))
+            h.append("\n")
+
+        h.append("</div>\n")
+
+    for ssi, sub in enumerate(step.sub_steps):
+        sub_id = f"{step_id}-{ssi}"
+        sub_icon_id = f"{step_icon_id}-{ssi}"
+        h += _render_step_block(sub, sub_id, sub_icon_id, auto_open)
+
+    h += ["</div>\n", "</div>\n"]
+    return h
 
 
 def _render_test(result: TestResult, index: int) -> str:
@@ -261,84 +356,9 @@ def _render_test(result: TestResult, index: int) -> str:
         h.append("</div>\n")
 
     for si, step in enumerate(result.steps):
-        has_events = bool(step.events)
-        if not has_events and step.status == "PASSED":
-            continue
-
         step_id = f"step-{index}-{si}"
         step_icon_id = f"step-icon-{index}-{si}"
-        step_status = "step-passed" if step.status == "PASSED" else "step-failed"
-        step_open = has_events and auto_open
-        open_cls = " open" if step_open else ""
-
-        h += [
-            f"<div class='step {step_status}'>\n",
-            f"<div class='step-header' onclick='toggleStep(\"{step_id}\", \"{step_icon_id}\")'>\n",
-            f"<span class='step-toggle-icon{open_cls}' id='{step_icon_id}'>&#9654;</span>\n",
-            f"<span class='step-name'>{_escape_html(step.name)}</span>\n",
-        ]
-        if step.events:
-            h.append(f"<span class='step-event-count'>{len(step.events)}</span>\n")
-        if (dur_ms := step.endTime - step.startTime) > 0:
-            h.append(f"<span class='step-duration'>{dur_ms}ms</span>\n")
-        h += [
-            f"<span class='step-time'>{_format_timestamp_hms(step.startTime)}</span>\n",
-            "</div>\n",
-        ]
-
-        step_display = "block" if step_open else "none"
-        h.append(f"<div class='step-events' id='{step_id}' style='display: {step_display};'>\n")
-
-        for ei, ev in enumerate(step.events):
-            ev_class = f"event-{ev.level.lower()}"
-            uid = f"{index}-{id(step)}-{ei}"
-            h.append(f"<div class='event {ev_class}' data-event-level='{ev.level}'>\n")
-            h.append(f"<span class='event-level'>{ev.level}</span>\n")
-
-            if ev.sourceFileName or ev.sourceLineNumber is not None:
-                loc_parts = []
-                if ev.sourceFileName:
-                    loc_parts.append(_escape_html(ev.sourceFileName))
-                if ev.sourceLineNumber is not None:
-                    if ev.sourceFileName:
-                        loc_parts.append(":")
-                    loc_parts.append(str(ev.sourceLineNumber))
-                h.append(f"<span class='event-source-location'>{''.join(loc_parts)}</span>\n")
-
-            if ev.type == "json":
-                pretty = _try_pretty_json(ev.event)
-                display_j = _format_json_for_display(pretty if pretty else ev.event)
-                data_orig = _escape_html(ev.event).replace("'", "&#39;")
-                h += [
-                    "<div class='json-container'>\n",
-                    "<div class='json-header'>\n",
-                    "<span class='json-label'>JSON</span>\n",
-                    f"<button class='copy-btn' onclick='copyToClipboard(\"{uid}\")'>&#128203;</button>\n",
-                    "</div>\n",
-                    f"<pre class='event-json' id='json-{uid}' data-original='{data_orig}'>{display_j}</pre>\n",
-                    "</div>\n",
-                ]
-            elif ev.event.startswith("Stack Trace:"):
-                st_content = ev.event[len("Stack Trace:") :].strip()
-                h += [
-                    "<div class='event-stacktrace-section'>\n",
-                    f"<div class='event-stacktrace-toggle' onclick='toggleEventStackTrace(\"{uid}\")'>\n",
-                    f"<span class='event-stacktrace-icon open' id='event-stacktrace-icon-{uid}'>&#9654;</span>\n",
-                    "<strong>Stack Trace</strong>\n",
-                    "</div>\n",
-                    f"<pre class='event-stacktrace-content' id='event-stacktrace-{uid}' style='display: block;'>"
-                    f"{_escape_html(st_content)}</pre>\n",
-                    "</div>\n",
-                ]
-            elif "\nTraceback (most recent call last):" in ev.event:
-                h.append(_render_event_with_traceback(ev.event, uid))
-            else:
-                h.append(_format_event_with_json(ev.event))
-                h.append("\n")
-
-            h.append("</div>\n")
-
-        h += ["</div>\n", "</div>\n"]
+        h += _render_step_block(step, step_id, step_icon_id, auto_open)
 
     h += ["</div>\n", "</div>\n"]
     return "".join(h)
@@ -627,6 +647,8 @@ body {{
 .step-duration {{ font-size:11px; color:var(--text-3); font-family:var(--mono); flex-shrink:0; }}
 .step-time {{ font-size:11px; color:var(--text-3); font-family:var(--mono); flex-shrink:0; }}
 .step-events {{ padding:4px 0 4px 18px; }}
+.step-events > .step {{ border-left:2px solid var(--border); border-bottom:none; margin:4px 0;
+border-radius:var(--radius); }}
 .event {{
   padding:6px 10px; margin:3px 0; border-radius:4px;
   background:#f9fafb; border-left:3px solid #d1d5db;

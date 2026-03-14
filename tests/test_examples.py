@@ -1,9 +1,23 @@
 import os
 
 from custom_python_logger import get_logger
+
 from pytest_reporter_html import step
 
 logger = get_logger(__name__)
+
+
+def test_steps():
+    with step("Create steps"):
+        logger.info("Creating a new step")
+        with step("Create step 1"):
+            logger.info("Creating a step 1")
+            with step("Create step 2"):
+                logger.info("Creating a step 2")
+                with step("Create step 3"):
+                    logger.info("Creating a step 3")
+                    with step("Create step 4"):
+                        logger.info("Creating a step 4")
 
 
 def test_user_lifecycle():

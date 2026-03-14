@@ -24,7 +24,7 @@ uv add pytest-reporter-html
 ## 🚀 Features
 
 - ✅ **Zero-Config Log Capture** — attaches to Python's root logger automatically; every `logging.*()` call is captured as a report event without any code changes
-- ✅ **Named Steps** — group events into collapsible, timed steps using the `step` context manager or decorator (sync and async)
+- ✅ **Named Steps** — group events into collapsible, timed steps using the `step` context manager or decorator (sync and async); supports **nested steps** with automatic hierarchical numbering (`1`, `1.1`, `1.2`, `2`, …)
 - ✅ **Automatic Phase Steps** — Setup, test body, and Teardown phases are created automatically for every test
 - ✅ **Interactive HTML Report** — real-time search, status filter (Passed/Failed), log-level filter (TRACE→ERROR), expand/collapse all, progress bar
 - ✅ **Exception Rendering** — full tracebacks captured and rendered as collapsible blocks; failed tests auto-expand
@@ -118,14 +118,54 @@ Report output:
 
 ```
 Test: test_user_lifecycle                                            PASSED
- ├── Step 01: Create user                               PASSED    120ms
- ├── Step 02: Update profile                            PASSED     45ms
- └── Step 03: Verify changes                            PASSED     30ms
+ ├── Step 1: Create user                                PASSED    120ms
+ ├── Step 2: Update profile                             PASSED     45ms
+ └── Step 3: Verify changes                             PASSED     30ms
 ```
 
 ---
 
-### Example 2: `step` as a decorator
+### Example 2: Nested steps
+
+Steps can be nested to any depth. Each level gets a hierarchical number automatically (`1.1`, `1.2`, `2.1`, …).
+
+```python
+from custom_python_logger import get_logger
+from pytest_reporter_html import step
+
+logger = get_logger(__name__)
+
+def test_user_lifecycle():
+    with step("Create user"):
+        logger.info("Creating a new user with role 'user'")
+        with step("Assign default role"):
+            logger.info("Setting role to 'viewer'")
+        with step("Send welcome email"):
+            logger.info("Email dispatched")
+
+    with step("Update profile"):
+        logger.info("Updating user profile to set role to 'admin'")
+
+    with step("Verify changes"):
+        logger.info("Verifying that the user's role has been updated to 'admin'")
+```
+
+Report output:
+
+```
+Test: test_user_lifecycle                                            PASSED
+ ├── Step 1: Create user                                PASSED    120ms
+ │    ├── Step 1.1: Assign default role                 PASSED     30ms
+ │    └── Step 1.2: Send welcome email                  PASSED     20ms
+ ├── Step 2: Update profile                             PASSED     45ms
+ └── Step 3: Verify changes                             PASSED     30ms
+```
+
+Sub-steps appear visually indented inside their parent step in the HTML report.
+
+---
+
+### Example 3: `step` as a decorator
 
 ```python
 from custom_python_logger import get_logger
@@ -143,13 +183,13 @@ async def notify(user_id: str) -> None:
     logger.info(f"Sending notification to user {user_id}")
 
 def test_flow():
-    user = get_user("u-1")   # → Step 01: Fetch user data
+    user = get_user("u-1")   # → Step 1: Fetch user data
     assert user["active"] is True
 ```
 
 ---
 
-### Example 3: Failure output
+### Example 4: Failure output
 
 When a test fails it auto-expands in the report, showing the failure message, stack trace, and all log events up to the point of failure:
 
