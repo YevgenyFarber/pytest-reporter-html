@@ -7,17 +7,22 @@ from pytest_reporter_html import step
 logger = get_logger(__name__)
 
 
+def test_steps():
+    with step("Create steps"):
+        logger.info("Creating a new step")
+        with step("Create step 1"):
+            logger.info("Creating a step 1")
+            with step("Create step 2"):
+                logger.info("Creating a step 2")
+                with step("Create step 3"):
+                    logger.info("Creating a step 3")
+                    with step("Create step 4"):
+                        logger.info("Creating a step 4")
+
+
 def test_user_lifecycle():
     with step("Create user"):
         logger.info("Creating a new user with role 'user'")
-        with step("Create sub_user 1"):
-            logger.info("Creating a new sub user 1 with role 'user'")
-            with step("Create sub_user 2"):
-                logger.info("Creating a new sub user 2 with role 'user'")
-                with step("Create sub_user 3"):
-                    logger.info("Creating a new sub user 3 with role 'user'")
-                    with step("Create sub_user 4"):
-                        logger.info("Creating a new sub user 4 with role 'user'")
 
     with step("Update profile"):
         logger.info("Updating user profile to set role to 'admin'")

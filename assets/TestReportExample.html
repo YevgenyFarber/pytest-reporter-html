@@ -1,4 +1,4 @@
-!DOCTYPE html>
+<!DOCTYPE html>
 <html lang='en'>
 <head>
 <meta charset='UTF-8'>
@@ -171,7 +171,8 @@ body {
 .step-duration { font-size:11px; color:var(--text-3); font-family:var(--mono); flex-shrink:0; }
 .step-time { font-size:11px; color:var(--text-3); font-family:var(--mono); flex-shrink:0; }
 .step-events { padding:4px 0 4px 18px; }
-.step-events > .step { border-left:2px solid var(--border); border-bottom:none; margin:4px 0; border-radius:var(--radius); }
+.step-events > .step { border-left:2px solid var(--border); border-bottom:none; margin:4px 0;
+border-radius:var(--radius); }
 .event {
   padding:6px 10px; margin:3px 0; border-radius:4px;
   background:#f9fafb; border-left:3px solid #d1d5db;
@@ -242,17 +243,19 @@ body {
 <header class='header'>
 <div class='header-top'>
 <h1>Test Report</h1>
-<div class='header-meta'>2026.03.14_17.40.24.780 &middot; 2026-03-14 17:40:24</div>
+<div class='header-meta'>2026.03.14_17.51.08.877 &middot; 2026-03-14 17:51:08</div>
 </div>
 <div class='progress-bar-container'>
-<div class='progress-bar pass-bar' style='width:100.0%'></div>
+<div class='progress-bar pass-bar' style='width:80.0%'></div>
+<div class='progress-bar fail-bar' style='width:20.0%'></div>
 </div>
 <div class='stats-row'>
-<span class='stat'><strong>1</strong> tests</span>
-<span class='stat stat-pass'><strong>1</strong> passed</span>
-<span class='stat'><strong>100%</strong> pass rate</span>
+<span class='stat'><strong>5</strong> tests</span>
+<span class='stat stat-pass'><strong>4</strong> passed</span>
+<span class='stat stat-fail'><strong>1</strong> failed</span>
+<span class='stat'><strong>80%</strong> pass rate</span>
 <span class='stat'><strong>0.00s</strong> duration</span>
-<span class='stat'><strong>8</strong> events</span>
+<span class='stat'><strong>18</strong> events</span>
 </div>
 </header>
 <div class='toolbar'>
@@ -277,134 +280,314 @@ body {
 <div class='test-header' onclick='toggleTest(0)'>
 <span class='status-dot pass'></span>
 <div class='test-name-container'>
-<span class='test-name'>User lifecycle</span>
-<span class='test-method-name'>test_user_lifecycle</span>
+<span class='test-name'>Logging levels</span>
+<span class='test-method-name'>test_logging_levels</span>
 </div>
 <span class='test-meta'>
 <span class='meta-item meta-duration'>0.00s</span>
-<span class='meta-item meta-events'>4 events</span>
+<span class='meta-item meta-events'>7 events</span>
 </span>
 <span class='toggle-icon' id='icon-0'>&#9660;</span>
 </div>
 <div class='test-details' id='test-0' style='display: none;'>
 <div class='step step-passed'>
+<div class='step-header' onclick='toggleStep("step-0-0", "step-icon-0-0")'>
+<span class='step-toggle-icon' id='step-icon-0-0'>&#9654;</span>
+<span class='step-name'>test_logging_levels</span>
+<span class='step-event-count'>6</span>
+<span class='step-duration'>1ms</span>
+<span class='step-time'>17:51:08.875</span>
+</div>
+<div class='step-events' id='step-0-0' style='display: none;'>
+<div class='event event-info' data-event-level='INFO'>
+<span class='event-level'>INFO</span>
+<span class='event-source-location'>test_examples.py:60</span>
+<span class='event-text'>Running test_simple</span>
+</div>
+<div class='event event-trace' data-event-level='TRACE'>
+<span class='event-level'>TRACE</span>
+<span class='event-source-location'>test_examples.py:62</span>
+<span class='event-text'>test_logging</span>
+</div>
+<div class='event event-debug' data-event-level='DEBUG'>
+<span class='event-level'>DEBUG</span>
+<span class='event-source-location'>test_examples.py:63</span>
+<span class='event-text'>This is a debug message</span>
+</div>
+<div class='event event-info' data-event-level='INFO'>
+<span class='event-level'>INFO</span>
+<span class='event-source-location'>test_examples.py:64</span>
+<span class='event-text'>This is an info message</span>
+</div>
+<div class='event event-warning' data-event-level='WARNING'>
+<span class='event-level'>WARNING</span>
+<span class='event-source-location'>test_examples.py:65</span>
+<span class='event-text'>This is a warning</span>
+</div>
+<div class='event event-error' data-event-level='ERROR'>
+<span class='event-level'>ERROR</span>
+<span class='event-source-location'>test_examples.py:66</span>
+<span class='event-text'>This is an error</span>
+</div>
+</div>
+</div>
+<div class='step step-passed'>
 <div class='step-header' onclick='toggleStep("step-0-1", "step-icon-0-1")'>
 <span class='step-toggle-icon' id='step-icon-0-1'>&#9654;</span>
-<span class='step-name'>Step 1: Create user</span>
+<span class='step-name'>Teardown</span>
 <span class='step-event-count'>1</span>
-<span class='step-time'>17:40:24.777</span>
+<span class='step-time'>17:51:08.876</span>
 </div>
 <div class='step-events' id='step-0-1' style='display: none;'>
 <div class='event event-info' data-event-level='INFO'>
 <span class='event-level'>INFO</span>
-<span class='event-source-location'>test_examples.py:11</span>
+<span class='event-source-location'>better_report.py:229</span>
+<span class='event-text'>Better report: Execution results saved</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class='test-item failed' data-status='FAILED'>
+<div class='test-header' onclick='toggleTest(1)'>
+<span class='status-dot fail'></span>
+<div class='test-name-container'>
+<span class='test-name'>Order checkout</span>
+<span class='test-method-name'>test_order_checkout</span>
+</div>
+<span class='test-meta'>
+<span class='meta-item meta-duration'>0.00s</span>
+<span class='meta-item meta-events'>2 events</span>
+</span>
+<span class='toggle-icon' id='icon-1'>&#9660;</span>
+</div>
+<div class='test-details open' id='test-1' style='display: block;'>
+<div class='failure-message'>
+<div class='failure-label'>FAILURE</div>
+<pre>AssertionError: Checkout failed — payment declined
+assert False</pre>
+<div class='stacktrace-section'>
+<div class='stacktrace-toggle' onclick='toggleStackTrace(1)'>
+<span class='stacktrace-icon' id='stacktrace-icon-1'>&#9654;</span>
+<strong>Stack Trace</strong>
+</div>
+<pre class='stacktrace-content' id='stacktrace-1' style='display: none;'>tests/test_examples.py:56: in test_order_checkout
+    assert False, &quot;Checkout failed — payment declined&quot;  # ← step is marked FAILED
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: Checkout failed — payment declined
+E   assert False</pre>
+</div>
+</div>
+<div class='step step-passed'>
+<div class='step-header' onclick='toggleStep("step-1-1", "step-icon-1-1")'>
+<span class='step-toggle-icon open' id='step-icon-1-1'>&#9654;</span>
+<span class='step-name'>Step 1: Create order</span>
+<span class='step-event-count'>1</span>
+<span class='step-time'>17:51:08.844</span>
+</div>
+<div class='step-events' id='step-1-1' style='display: block;'>
+<div class='event event-info' data-event-level='INFO'>
+<span class='event-level'>INFO</span>
+<span class='event-source-location'>test_examples.py:51</span>
+<span class='event-text'>Creating order with 3 items</span>
+</div>
+</div>
+</div>
+<div class='step step-failed'>
+<div class='step-header' onclick='toggleStep("step-1-2", "step-icon-1-2")'>
+<span class='step-toggle-icon open' id='step-icon-1-2'>&#9654;</span>
+<span class='step-name'>Step 2: Checkout</span>
+<span class='step-event-count'>1</span>
+<span class='step-time'>17:51:08.844</span>
+</div>
+<div class='step-events' id='step-1-2' style='display: block;'>
+<div class='event event-info' data-event-level='INFO'>
+<span class='event-level'>INFO</span>
+<span class='event-source-location'>test_examples.py:54</span>
+<span class='event-text'>Submitting checkout request</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class='test-item passed' data-status='PASSED'>
+<div class='test-header' onclick='toggleTest(2)'>
+<span class='status-dot pass'></span>
+<div class='test-name-container'>
+<span class='test-name'>Flow</span>
+<span class='test-method-name'>test_flow</span>
+</div>
+<span class='test-meta'>
+<span class='meta-item meta-duration'>0.00s</span>
+<span class='meta-item meta-events'>1 event</span>
+</span>
+<span class='toggle-icon' id='icon-2'>&#9660;</span>
+</div>
+<div class='test-details' id='test-2' style='display: none;'>
+<div class='step step-passed'>
+<div class='step-header' onclick='toggleStep("step-2-1", "step-icon-2-1")'>
+<span class='step-toggle-icon' id='step-icon-2-1'>&#9654;</span>
+<span class='step-name'>Step 1: Fetch user data</span>
+<span class='step-event-count'>1</span>
+<span class='step-time'>17:51:08.842</span>
+</div>
+<div class='step-events' id='step-2-1' style='display: none;'>
+<div class='event event-info' data-event-level='INFO'>
+<span class='event-level'>INFO</span>
+<span class='event-source-location'>test_examples.py:35</span>
+<span class='event-text'>Fetching user u-1</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class='test-item passed' data-status='PASSED'>
+<div class='test-header' onclick='toggleTest(3)'>
+<span class='status-dot pass'></span>
+<div class='test-name-container'>
+<span class='test-name'>User lifecycle</span>
+<span class='test-method-name'>test_user_lifecycle</span>
+</div>
+<span class='test-meta'>
+<span class='meta-item meta-duration'>0.00s</span>
+<span class='meta-item meta-events'>3 events</span>
+</span>
+<span class='toggle-icon' id='icon-3'>&#9660;</span>
+</div>
+<div class='test-details' id='test-3' style='display: none;'>
+<div class='step step-passed'>
+<div class='step-header' onclick='toggleStep("step-3-1", "step-icon-3-1")'>
+<span class='step-toggle-icon' id='step-icon-3-1'>&#9654;</span>
+<span class='step-name'>Step 1: Create user</span>
+<span class='step-event-count'>1</span>
+<span class='step-time'>17:51:08.841</span>
+</div>
+<div class='step-events' id='step-3-1' style='display: none;'>
+<div class='event event-info' data-event-level='INFO'>
+<span class='event-level'>INFO</span>
+<span class='event-source-location'>test_examples.py:24</span>
 <span class='event-text'>Creating a new user with role &#39;user&#39;</span>
 </div>
-<div class='step step-passed'>
-<div class='step-header' onclick='toggleStep("step-0-1-0", "step-icon-0-1-0")'>
-<span class='step-toggle-icon' id='step-icon-0-1-0'>&#9654;</span>
-<span class='step-name'>Step 1.1: Create sub_user 1</span>
-<span class='step-event-count'>1</span>
-<span class='step-time'>17:40:24.777</span>
-</div>
-<div class='step-events' id='step-0-1-0' style='display: none;'>
-<div class='event event-info' data-event-level='INFO'>
-<span class='event-level'>INFO</span>
-<span class='event-source-location'>test_examples.py:13</span>
-<span class='event-text'>Creating a new sub user 1 with role &#39;user&#39;</span>
-</div>
-<div class='step step-passed'>
-<div class='step-header' onclick='toggleStep("step-0-1-0-0", "step-icon-0-1-0-0")'>
-<span class='step-toggle-icon' id='step-icon-0-1-0-0'>&#9654;</span>
-<span class='step-name'>Step 1.1.1: Create sub_user 2</span>
-<span class='step-event-count'>1</span>
-<span class='step-time'>17:40:24.777</span>
-</div>
-<div class='step-events' id='step-0-1-0-0' style='display: none;'>
-<div class='event event-info' data-event-level='INFO'>
-<span class='event-level'>INFO</span>
-<span class='event-source-location'>test_examples.py:15</span>
-<span class='event-text'>Creating a new sub user 2 with role &#39;user&#39;</span>
-</div>
-<div class='step step-passed'>
-<div class='step-header' onclick='toggleStep("step-0-1-0-0-0", "step-icon-0-1-0-0-0")'>
-<span class='step-toggle-icon' id='step-icon-0-1-0-0-0'>&#9654;</span>
-<span class='step-name'>Step 1.1.1.1: Create sub_user 3</span>
-<span class='step-event-count'>1</span>
-<span class='step-time'>17:40:24.777</span>
-</div>
-<div class='step-events' id='step-0-1-0-0-0' style='display: none;'>
-<div class='event event-info' data-event-level='INFO'>
-<span class='event-level'>INFO</span>
-<span class='event-source-location'>test_examples.py:17</span>
-<span class='event-text'>Creating a new sub user 3 with role &#39;user&#39;</span>
-</div>
-<div class='step step-passed'>
-<div class='step-header' onclick='toggleStep("step-0-1-0-0-0-0", "step-icon-0-1-0-0-0-0")'>
-<span class='step-toggle-icon' id='step-icon-0-1-0-0-0-0'>&#9654;</span>
-<span class='step-name'>Step 1.1.1.1.1: Create sub_user 4</span>
-<span class='step-event-count'>1</span>
-<span class='step-time'>17:40:24.777</span>
-</div>
-<div class='step-events' id='step-0-1-0-0-0-0' style='display: none;'>
-<div class='event event-info' data-event-level='INFO'>
-<span class='event-level'>INFO</span>
-<span class='event-source-location'>test_examples.py:19</span>
-<span class='event-text'>Creating a new sub user 4 with role &#39;user&#39;</span>
-</div>
-</div>
-</div>
-</div>
-</div>
-</div>
-</div>
-</div>
-</div>
 </div>
 </div>
 <div class='step step-passed'>
-<div class='step-header' onclick='toggleStep("step-0-2", "step-icon-0-2")'>
-<span class='step-toggle-icon' id='step-icon-0-2'>&#9654;</span>
+<div class='step-header' onclick='toggleStep("step-3-2", "step-icon-3-2")'>
+<span class='step-toggle-icon' id='step-icon-3-2'>&#9654;</span>
 <span class='step-name'>Step 2: Update profile</span>
 <span class='step-event-count'>1</span>
-<span class='step-time'>17:40:24.777</span>
+<span class='step-time'>17:51:08.841</span>
 </div>
-<div class='step-events' id='step-0-2' style='display: none;'>
+<div class='step-events' id='step-3-2' style='display: none;'>
 <div class='event event-info' data-event-level='INFO'>
 <span class='event-level'>INFO</span>
-<span class='event-source-location'>test_examples.py:22</span>
+<span class='event-source-location'>test_examples.py:27</span>
 <span class='event-text'>Updating user profile to set role to &#39;admin&#39;</span>
 </div>
 </div>
 </div>
 <div class='step step-passed'>
-<div class='step-header' onclick='toggleStep("step-0-3", "step-icon-0-3")'>
-<span class='step-toggle-icon' id='step-icon-0-3'>&#9654;</span>
+<div class='step-header' onclick='toggleStep("step-3-3", "step-icon-3-3")'>
+<span class='step-toggle-icon' id='step-icon-3-3'>&#9654;</span>
 <span class='step-name'>Step 3: Verify changes</span>
 <span class='step-event-count'>1</span>
-<span class='step-time'>17:40:24.777</span>
+<span class='step-time'>17:51:08.841</span>
 </div>
-<div class='step-events' id='step-0-3' style='display: none;'>
+<div class='step-events' id='step-3-3' style='display: none;'>
 <div class='event event-info' data-event-level='INFO'>
 <span class='event-level'>INFO</span>
-<span class='event-source-location'>test_examples.py:25</span>
+<span class='event-source-location'>test_examples.py:30</span>
 <span class='event-text'>Verifying that the user&#39;s role has been updated to &#39;admin&#39;</span>
 </div>
 </div>
 </div>
-<div class='step step-passed'>
-<div class='step-header' onclick='toggleStep("step-0-4", "step-icon-0-4")'>
-<span class='step-toggle-icon' id='step-icon-0-4'>&#9654;</span>
-<span class='step-name'>Teardown</span>
-<span class='step-event-count'>1</span>
-<span class='step-duration'>1ms</span>
-<span class='step-time'>17:40:24.777</span>
 </div>
-<div class='step-events' id='step-0-4' style='display: none;'>
+</div>
+<div class='test-item passed' data-status='PASSED'>
+<div class='test-header' onclick='toggleTest(4)'>
+<span class='status-dot pass'></span>
+<div class='test-name-container'>
+<span class='test-name'>Steps</span>
+<span class='test-method-name'>test_steps</span>
+</div>
+<span class='test-meta'>
+<span class='meta-item meta-duration'>0.00s</span>
+<span class='meta-item meta-events'>1 event</span>
+</span>
+<span class='toggle-icon' id='icon-4'>&#9660;</span>
+</div>
+<div class='test-details' id='test-4' style='display: none;'>
+<div class='step step-passed'>
+<div class='step-header' onclick='toggleStep("step-4-1", "step-icon-4-1")'>
+<span class='step-toggle-icon' id='step-icon-4-1'>&#9654;</span>
+<span class='step-name'>Step 1: Create steps</span>
+<span class='step-event-count'>1</span>
+<span class='step-time'>17:51:08.838</span>
+</div>
+<div class='step-events' id='step-4-1' style='display: none;'>
 <div class='event event-info' data-event-level='INFO'>
 <span class='event-level'>INFO</span>
-<span class='event-source-location'>better_report.py:229</span>
-<span class='event-text'>Better report: Execution results saved</span>
+<span class='event-source-location'>test_examples.py:11</span>
+<span class='event-text'>Creating a new step</span>
+</div>
+<div class='step step-passed'>
+<div class='step-header' onclick='toggleStep("step-4-1-0", "step-icon-4-1-0")'>
+<span class='step-toggle-icon' id='step-icon-4-1-0'>&#9654;</span>
+<span class='step-name'>Step 1.1: Create step 1</span>
+<span class='step-event-count'>1</span>
+<span class='step-time'>17:51:08.838</span>
+</div>
+<div class='step-events' id='step-4-1-0' style='display: none;'>
+<div class='event event-info' data-event-level='INFO'>
+<span class='event-level'>INFO</span>
+<span class='event-source-location'>test_examples.py:13</span>
+<span class='event-text'>Creating a step 1</span>
+</div>
+<div class='step step-passed'>
+<div class='step-header' onclick='toggleStep("step-4-1-0-0", "step-icon-4-1-0-0")'>
+<span class='step-toggle-icon' id='step-icon-4-1-0-0'>&#9654;</span>
+<span class='step-name'>Step 1.1.1: Create step 2</span>
+<span class='step-event-count'>1</span>
+<span class='step-time'>17:51:08.838</span>
+</div>
+<div class='step-events' id='step-4-1-0-0' style='display: none;'>
+<div class='event event-info' data-event-level='INFO'>
+<span class='event-level'>INFO</span>
+<span class='event-source-location'>test_examples.py:15</span>
+<span class='event-text'>Creating a step 2</span>
+</div>
+<div class='step step-passed'>
+<div class='step-header' onclick='toggleStep("step-4-1-0-0-0", "step-icon-4-1-0-0-0")'>
+<span class='step-toggle-icon' id='step-icon-4-1-0-0-0'>&#9654;</span>
+<span class='step-name'>Step 1.1.1.1: Create step 3</span>
+<span class='step-event-count'>1</span>
+<span class='step-time'>17:51:08.838</span>
+</div>
+<div class='step-events' id='step-4-1-0-0-0' style='display: none;'>
+<div class='event event-info' data-event-level='INFO'>
+<span class='event-level'>INFO</span>
+<span class='event-source-location'>test_examples.py:17</span>
+<span class='event-text'>Creating a step 3</span>
+</div>
+<div class='step step-passed'>
+<div class='step-header' onclick='toggleStep("step-4-1-0-0-0-0", "step-icon-4-1-0-0-0-0")'>
+<span class='step-toggle-icon' id='step-icon-4-1-0-0-0-0'>&#9654;</span>
+<span class='step-name'>Step 1.1.1.1.1: Create step 4</span>
+<span class='step-event-count'>1</span>
+<span class='step-time'>17:51:08.838</span>
+</div>
+<div class='step-events' id='step-4-1-0-0-0-0' style='display: none;'>
+<div class='event event-info' data-event-level='INFO'>
+<span class='event-level'>INFO</span>
+<span class='event-source-location'>test_examples.py:19</span>
+<span class='event-text'>Creating a step 4</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
 </div>
 </div>
 </div>
