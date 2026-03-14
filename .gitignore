@@ -179,3 +179,4 @@ results_output/
 reports/
 .vscode
 .DS_Store
+.claude
