@@ -411,7 +411,7 @@ def _generate_html(
         "<option value='TRACE'>TRACE</option>\n",
         "<option value='DEBUG' selected>DEBUG</option>\n",
         "<option value='INFO'>INFO</option>\n",
-        "<option value='WARN'>WARN</option>\n",
+        "<option value='WARNING'>WARNING</option>\n",
         "<option value='ERROR'>ERROR</option>\n",
         "</select>\n",
         "<button class='toolbar-btn' onclick='expandAll()'>Expand All</button>\n",
@@ -788,7 +788,7 @@ function collapseAll() {
   });
   document.querySelectorAll('.toggle-icon').forEach(function(i) { i.classList.remove('open'); });
 }
-var _LEVEL_ORDER = {TRACE:0, DEBUG:1, INFO:2, WARN:3, ERROR:4};
+var _LEVEL_ORDER = {TRACE:0, DEBUG:1, INFO:2, WARNING:3, ERROR:4};
 function filterLogLevel() {
   var sel = document.getElementById('logLevelFilter').value;
   var minLevel = _LEVEL_ORDER[sel] || 0;
