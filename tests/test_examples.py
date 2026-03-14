@@ -1,6 +1,7 @@
 import os
 
 from custom_python_logger import get_logger
+
 from pytest_reporter_html import step
 
 logger = get_logger(__name__)
@@ -9,6 +10,14 @@ logger = get_logger(__name__)
 def test_user_lifecycle():
     with step("Create user"):
         logger.info("Creating a new user with role 'user'")
+        with step("Create sub_user 1"):
+            logger.info("Creating a new sub user 1 with role 'user'")
+            with step("Create sub_user 2"):
+                logger.info("Creating a new sub user 2 with role 'user'")
+                with step("Create sub_user 3"):
+                    logger.info("Creating a new sub user 3 with role 'user'")
+                    with step("Create sub_user 4"):
+                        logger.info("Creating a new sub user 4 with role 'user'")
 
     with step("Update profile"):
         logger.info("Updating user profile to set role to 'admin'")

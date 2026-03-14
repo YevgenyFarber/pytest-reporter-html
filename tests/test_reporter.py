@@ -150,6 +150,7 @@ class TestTestReporter:
         assert (
             reporter.step_counter == 1
         ), f"Step counter should be 1 after first begin_step, got {reporter.step_counter}"
+        reporter.end_step()
         reporter.begin_step("step two")
         assert (
             reporter.step_counter == 2
@@ -160,8 +161,8 @@ class TestTestReporter:
         reporter.begin_step("my step")
         assert reporter.current_step is not None, "Current step should not be None"
         assert (
-            reporter.current_step.name == "Step 01: my step"
-        ), f"Expected 'Step 01: my step', got {reporter.current_step.name!r}"
+            reporter.current_step.name == "Step 1: my step"
+        ), f"Expected 'Step 1: my step', got {reporter.current_step.name!r}"
 
     def test_end_step_closes_current_step(self, reporter: TestReporter) -> None:
         reporter.begin_phase("test_example")
