@@ -909,7 +909,7 @@ wheels = [
 
 [[package]]
 name = "pytest-reporter-html"
-version = "2.3.0"
+version = "2.4.0"
 source = { editable = "." }
 dependencies = [
     { name = "custom-python-logger", version = "2.0.11", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
