@@ -4,8 +4,10 @@ Package-wide constants for pytest-reporter-html.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from enum import IntEnum
+
+DEFAULT_OUTPUT_DIR = "logs/test-reports"
+DEFAULT_TITLE = "Test Report"
 
 
 class TestStatus(IntEnum):
@@ -24,10 +26,3 @@ class TestStatus(IntEnum):
     SKIPPED = 1
     FAILED = 2
     ERROR = 3
-
-
-@dataclass
-class PluginConfig:
-    output_dir: str = "logs/test-reports"
-    title: str = "Test Report"
-    generate_html: bool = False

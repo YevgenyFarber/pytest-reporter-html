@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 from collections.abc import Callable, Generator
 from typing import Any
 
@@ -11,14 +12,13 @@ import pytest
 from _pytest.python import Function
 from custom_python_logger import get_logger
 
-from .const import PluginConfig, TestStatus
+from .const import DEFAULT_OUTPUT_DIR, DEFAULT_TITLE, TestStatus
 from .helpers import _extract_failure, _module_label, _now_millis, _worse
 from .html_report import generate_report
 from .reporter import ReportEvent, TestReporter, _active_reporter
 
 logger = get_logger(__name__)
 
-_cfg_key: pytest.StashKey[PluginConfig] = pytest.StashKey()
 _reporter_key: pytest.StashKey[TestReporter] = pytest.StashKey()
 _status_key: pytest.StashKey[str] = pytest.StashKey()
 _failure_key: pytest.StashKey[tuple[str, str]] = pytest.StashKey()
@@ -51,21 +51,17 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--report-html", action="store_true", default=False, help="Generate an aggregated HTML report at session end."
     )
-
-
-def pytest_configure(config: pytest.Config) -> None:
-    config.stash[_cfg_key] = PluginConfig(
-        generate_html=bool(config.getoption("--report-html", default=False)),
+    parser.addoption(
+        "--keep-json", action="store_true", default=False, help="Keep intermediate JSON files after HTML report generation."
     )
 
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_runtest_setup(item: pytest.Item) -> None:
-    cfg = item.config.stash[_cfg_key]
     reporter = TestReporter(
         test_name=item.name,
         class_name=_module_label(item),
-        output_dir=cfg.output_dir,
+        output_dir=DEFAULT_OUTPUT_DIR,
     )
     item.stash[_reporter_key] = reporter
     item.stash[_status_key] = TestStatus.PASSED.name
@@ -141,14 +137,19 @@ def pytest_runtest_teardown(item: pytest.Item) -> None:
         reporter.begin_phase("Teardown")
 
 
-def pytest_sessionfinish(session: pytest.Session) -> None:  # noqa: ARG001
-    cfg = session.config.stash[_cfg_key]
-    if not cfg.generate_html:
+def pytest_sessionfinish(session: pytest.Session) -> None:
+    config = session.config
+    if not config.getoption("--report-html", default=False):
         return
 
-    if report_path := generate_report(cfg.output_dir, title=cfg.title):
-        abs_path = os.path.abspath(report_path)
-        logger.info(f"Report: file://{abs_path}")
+    if report_path := generate_report(DEFAULT_OUTPUT_DIR, title=DEFAULT_TITLE):
+        logger.info(f"Report: file://{os.path.abspath(report_path)}")
+
+    if not config.getoption("--keep-json", default=False):
+        json_dir = os.path.join(DEFAULT_OUTPUT_DIR, "json")
+        if os.path.isdir(json_dir):
+            shutil.rmtree(json_dir)
+            logger.debug(f"Removed intermediate JSON directory: {json_dir}")
 
 
 @pytest.fixture
