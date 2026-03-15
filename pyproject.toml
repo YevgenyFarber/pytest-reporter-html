@@ -34,9 +34,9 @@ asyncio_mode = "auto"
 report_mode = "all"
 
 [project.urls]
-Homepage = "https://github.com/aviz92/pytest-reporter-html"
-Repository = "https://github.com/aviz92/pytest-reporter-html"
-Issues = "https://github.com/aviz92/pytest-reporter-html/issues"
+Homepage = "https://github.com/YevgenyFarber/pytest-reporter-html"
+Repository = "https://github.com/YevgenyFarber/pytest-reporter-html"
+Issues = "https://github.com/YevgenyFarber/pytest-reporter-html/issues"
 
 [build-system]
 requires = ["hatchling"]
