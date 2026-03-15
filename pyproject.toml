@@ -1,6 +1,6 @@
 [project]
 name = "pytest-reporter-html"
-version = "2.3.0"
+version = "2.4.0"
 description = "Pytest plugin that generates rich HTML test reports with step tracking, log capture, and interactive filtering"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -34,9 +34,9 @@ asyncio_mode = "auto"
 report_mode = "all"
 
 [project.urls]
-Homepage = "https://github.com/aviz92/pytest-reporter-html"
-Repository = "https://github.com/aviz92/pytest-reporter-html"
-Issues = "https://github.com/aviz92/pytest-reporter-html/issues"
+Homepage = "https://github.com/YevgenyFarber/pytest-reporter-html"
+Repository = "https://github.com/YevgenyFarber/pytest-reporter-html"
+Issues = "https://github.com/YevgenyFarber/pytest-reporter-html/issues"
 
 [build-system]
 requires = ["hatchling"]
