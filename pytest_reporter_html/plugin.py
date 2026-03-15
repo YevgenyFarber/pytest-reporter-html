@@ -52,7 +52,10 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "--report-html", action="store_true", default=False, help="Generate an aggregated HTML report at session end."
     )
     parser.addoption(
-        "--keep-json", action="store_true", default=False, help="Keep intermediate JSON files after HTML report generation."
+        "--keep-json",
+        action="store_true",
+        default=False,
+        help="Keep intermediate JSON files after HTML report generation.",
     )
 
 
