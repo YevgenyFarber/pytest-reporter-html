@@ -71,42 +71,6 @@ class TestResult:
 
 
 # ---------------------------------------------------------------------------
-# History helpers
-# ---------------------------------------------------------------------------
-
-_HISTORY_FILE = "test_history.json"
-_HISTORY_MAX_RUNS = 10
-
-
-def _history_key(result: TestResult) -> str:
-    return f"{result.className}::{result.methodName}"
-
-
-def _load_history(report_dir: Path) -> dict[str, list[dict]]:
-    history_file = report_dir / _HISTORY_FILE
-    if not history_file.exists():
-        return {}
-    try:
-        with open(history_file, encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
-
-
-def _update_history(report_dir: Path, results: list[TestResult], run_timestamp: str) -> dict[str, list[dict]]:
-    history = _load_history(report_dir)
-    for result in results:
-        key = _history_key(result)
-        runs = history.get(key, [])
-        runs.append({"ts": run_timestamp, "status": result.status, "duration": result.duration})
-        history[key] = runs[-_HISTORY_MAX_RUNS:]
-    history_file = report_dir / _HISTORY_FILE
-    with open(history_file, "w", encoding="utf-8") as f:
-        json.dump(history, f)
-    return history
-
-
-# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -150,8 +114,7 @@ def generate_report(report_directory: str, *, title: str = "Test Report") -> str
             grouped.setdefault(tr.className, []).append(tr)
 
         timestamp = _format_ts(datetime.now())
-        history = _update_history(report_dir, test_results, timestamp)
-        html = _generate_html(test_results, grouped, timestamp, title=title, history=history)
+        html = _generate_html(test_results, grouped, timestamp, title=title)
 
         ts_file = report_dir / f"TestReport_All_{timestamp}.html"
         ts_file.write_text(html, encoding="utf-8")
@@ -338,7 +301,7 @@ def _render_step_block(
     return h
 
 
-def _render_test(result: TestResult, index: int, history_runs: list[dict] | None = None) -> str:
+def _render_test(result: TestResult, index: int) -> str:
     status_class = "passed" if result.status == "PASSED" else "failed"
     status_icon = (
         "<span class='status-dot pass'></span>"
@@ -355,23 +318,7 @@ def _render_test(result: TestResult, index: int, history_runs: list[dict] | None
         "<div class='test-name-container'>\n",
         f"<span class='test-name'>{_escape_html(result.testName)}</span>\n",
         f"<span class='test-method-name'>{_escape_html(result.methodName)}</span>\n",
-    ]
-
-    if history_runs and len(history_runs) > 1:
-        h.append("<div class='history-strip'>\n")
-        h.append("<span class='history-label'>runs</span>\n")
-        for i, run in enumerate(history_runs):
-            is_current = i == len(history_runs) - 1
-            dot_class = "passed" if run["status"] == "PASSED" else "failed" if run["status"] == "FAILED" else "skipped"
-            current_cls = " current" if is_current else ""
-            dur = f"{run['duration'] / 1000:.2f}s"
-            filename = f"TestReport_All_{run['ts']}.html"
-            tip = f"{filename} · {run['status']} · {dur}"
-            h.append(f"<span class='history-dot {dot_class}{current_cls}' title='{tip}'></span>\n")
-        h.append("</div>\n")
-
-    h.append("</div>\n")  # close test-name-container
-    h += [
+        "</div>\n",
         "<span class='test-meta'>\n",
         f"<span class='meta-item meta-duration'>{result.duration / 1000:.2f}s</span>\n",
     ]
@@ -427,7 +374,6 @@ def _generate_html(
     grouped: dict[str, list[TestResult]],
     run_timestamp: str,
     title: str = "Test Report",
-    history: dict[str, list[dict]] | None = None,
 ) -> str:
     total = len(results)
     passed = sum(1 for r in results if r.status == "PASSED")
@@ -514,12 +460,12 @@ def _generate_html(
                 h.append(f"<span class='class-fail-badge'>{cls_failed} failed</span>\n")
             h += ["</h2>\n", f"<div class='class-tests' id='class-group-{cls_idx}'>\n"]
             for tr in class_tests:
-                h.append(_render_test(tr, idx, history.get(_history_key(tr)) if history else None))
+                h.append(_render_test(tr, idx))
                 idx += 1
             h += ["</div>\n", "</div>\n"]
     else:
         for tr in results:
-            h.append(_render_test(tr, idx, history.get(_history_key(tr)) if history else None))
+            h.append(_render_test(tr, idx))
             idx += 1
     h.append("</main>\n")
 
@@ -767,23 +713,6 @@ border-radius:var(--radius); }}
   border-radius:var(--radius); border:1px solid var(--red-border);
 }}
 .no-results {{ text-align:center; padding:40px; color:var(--text-3); font-size:14px; }}
-.history-strip {{
-  display:flex; align-items:center; gap:3px; margin-top:3px;
-}}
-.history-label {{
-  font-size:9px; color:var(--text-3); margin-right:2px;
-  text-transform:uppercase; letter-spacing:.04em; flex-shrink:0;
-}}
-.history-dot {{
-  width:7px; height:7px; border-radius:50%;
-  display:inline-block; flex-shrink:0; opacity:0.5;
-  cursor:default; transition:opacity .15s;
-}}
-.history-dot:hover {{ opacity:1; }}
-.history-dot.current {{ opacity:1; width:8px; height:8px; }}
-.history-dot.passed {{ background:var(--green); }}
-.history-dot.failed {{ background:var(--red); }}
-.history-dot.skipped {{ background:var(--text-3); }}
 """
 
 
