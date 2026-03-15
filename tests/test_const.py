@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from pytest_reporter_html.const import PluginConfig, TestStatus
+from pytest_reporter_html.const import DEFAULT_OUTPUT_DIR, DEFAULT_TITLE, TestStatus
 
 
 class TestTestStatus:
@@ -40,23 +40,9 @@ class TestTestStatus:
         assert isinstance(TestStatus.PASSED, int), "TestStatus members must be integers"
 
 
-class TestPluginConfig:
+class TestDefaults:
     def test_default_output_dir(self) -> None:
-        cfg = PluginConfig()
-        assert (
-            cfg.output_dir == "logs/test-reports"
-        ), f"Default output_dir should be 'logs/test-reports', got {cfg.output_dir!r}"
+        assert DEFAULT_OUTPUT_DIR == "logs/test-reports"
 
     def test_default_title(self) -> None:
-        cfg = PluginConfig()
-        assert cfg.title == "Test Report", f"Default title should be 'Test Report', got {cfg.title!r}"
-
-    def test_default_generate_html_is_false(self) -> None:
-        cfg = PluginConfig()
-        assert cfg.generate_html is False, f"Default generate_html should be False, got {cfg.generate_html!r}"
-
-    def test_custom_values(self) -> None:
-        cfg = PluginConfig(output_dir="/tmp/reports", title="My Report", generate_html=True)
-        assert cfg.output_dir == "/tmp/reports", "output_dir not set correctly"
-        assert cfg.title == "My Report", "title not set correctly"
-        assert cfg.generate_html is True, "generate_html not set correctly"
+        assert DEFAULT_TITLE == "Test Report"
