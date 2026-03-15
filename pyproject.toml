@@ -1,6 +1,6 @@
 [project]
 name = "pytest-reporter-html"
-version = "2.3.0"
+version = "2.4.0"
 description = "Pytest plugin that generates rich HTML test reports with step tracking, log capture, and interactive filtering"
 readme = "README.md"
 requires-python = ">=3.11"
