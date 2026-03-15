@@ -237,30 +237,13 @@ border-radius:var(--radius); }
   border-radius:var(--radius); border:1px solid var(--red-border);
 }
 .no-results { text-align:center; padding:40px; color:var(--text-3); font-size:14px; }
-.history-strip {
-  display:flex; align-items:center; gap:3px; margin-top:3px;
-}
-.history-label {
-  font-size:9px; color:var(--text-3); margin-right:2px;
-  text-transform:uppercase; letter-spacing:.04em; flex-shrink:0;
-}
-.history-dot {
-  width:7px; height:7px; border-radius:50%;
-  display:inline-block; flex-shrink:0; opacity:0.5;
-  cursor:default; transition:opacity .15s;
-}
-.history-dot:hover { opacity:1; }
-.history-dot.current { opacity:1; width:8px; height:8px; }
-.history-dot.passed { background:var(--green); }
-.history-dot.failed { background:var(--red); }
-.history-dot.skipped { background:var(--text-3); }
 </style>
 </head>
 <body>
 <header class='header'>
 <div class='header-top'>
 <h1>Test Report</h1>
-<div class='header-meta'>2026.03.15_18.24.46.952 &middot; 2026-03-15 18:24:46</div>
+<div class='header-meta'>2026.03.15_17.57.23.288 &middot; 2026-03-15 17:57:23</div>
 </div>
 <div class='progress-bar-container'>
 <div class='progress-bar pass-bar' style='width:80.0%'></div>
@@ -299,11 +282,6 @@ border-radius:var(--radius); }
 <div class='test-name-container'>
 <span class='test-name'>Logging levels</span>
 <span class='test-method-name'>test_logging_levels</span>
-<div class='history-strip'>
-<span class='history-label'>runs</span>
-<span class='history-dot passed' title='TestReport_All_2026.03.15_18.24.42.201.html · PASSED · 0.00s'></span>
-<span class='history-dot passed current' title='TestReport_All_2026.03.15_18.24.46.952.html · PASSED · 0.00s'></span>
-</div>
 </div>
 <span class='test-meta'>
 <span class='meta-item meta-duration'>0.00s</span>
@@ -317,7 +295,7 @@ border-radius:var(--radius); }
 <span class='step-toggle-icon' id='step-icon-0-0'>&#9654;</span>
 <span class='step-name'>test_logging_levels</span>
 <span class='step-event-count'>6</span>
-<span class='step-time'>18:24:46.950</span>
+<span class='step-time'>17:57:23.286</span>
 </div>
 <div class='step-events' id='step-0-0' style='display: none;'>
 <div class='event event-info' data-event-level='INFO'>
@@ -357,8 +335,7 @@ border-radius:var(--radius); }
 <span class='step-toggle-icon' id='step-icon-0-1'>&#9654;</span>
 <span class='step-name'>Teardown</span>
 <span class='step-event-count'>1</span>
-<span class='step-duration'>1ms</span>
-<span class='step-time'>18:24:46.950</span>
+<span class='step-time'>17:57:23.286</span>
 </div>
 <div class='step-events' id='step-0-1' style='display: none;'>
 <div class='event event-info' data-event-level='INFO'>
@@ -376,11 +353,6 @@ border-radius:var(--radius); }
 <div class='test-name-container'>
 <span class='test-name'>Order checkout</span>
 <span class='test-method-name'>test_order_checkout</span>
-<div class='history-strip'>
-<span class='history-label'>runs</span>
-<span class='history-dot failed' title='TestReport_All_2026.03.15_18.24.42.201.html · FAILED · 0.00s'></span>
-<span class='history-dot failed current' title='TestReport_All_2026.03.15_18.24.46.952.html · FAILED · 0.00s'></span>
-</div>
 </div>
 <span class='test-meta'>
 <span class='meta-item meta-duration'>0.00s</span>
@@ -410,7 +382,7 @@ E   assert False</pre>
 <span class='step-toggle-icon open' id='step-icon-1-1'>&#9654;</span>
 <span class='step-name'>Step 1: Create order</span>
 <span class='step-event-count'>1</span>
-<span class='step-time'>18:24:46.913</span>
+<span class='step-time'>17:57:23.263</span>
 </div>
 <div class='step-events' id='step-1-1' style='display: block;'>
 <div class='event event-info' data-event-level='INFO'>
@@ -426,7 +398,7 @@ E   assert False</pre>
 <span class='step-name'>Step 2: Checkout</span>
 <span class='step-event-count'>1</span>
 <span class='step-duration'>1ms</span>
-<span class='step-time'>18:24:46.913</span>
+<span class='step-time'>17:57:23.263</span>
 </div>
 <div class='step-events' id='step-1-2' style='display: block;'>
 <div class='event event-info' data-event-level='INFO'>
@@ -444,11 +416,6 @@ E   assert False</pre>
 <div class='test-name-container'>
 <span class='test-name'>Flow</span>
 <span class='test-method-name'>test_flow</span>
-<div class='history-strip'>
-<span class='history-label'>runs</span>
-<span class='history-dot failed' title='TestReport_All_2026.03.15_18.24.42.201.html · FAILED · 0.00s'></span>
-<span class='history-dot passed current' title='TestReport_All_2026.03.15_18.24.46.952.html · PASSED · 0.00s'></span>
-</div>
 </div>
 <span class='test-meta'>
 <span class='meta-item meta-duration'>0.00s</span>
@@ -462,7 +429,7 @@ E   assert False</pre>
 <span class='step-toggle-icon' id='step-icon-2-1'>&#9654;</span>
 <span class='step-name'>Step 1: Fetch user data</span>
 <span class='step-event-count'>1</span>
-<span class='step-time'>18:24:46.912</span>
+<span class='step-time'>17:57:23.263</span>
 </div>
 <div class='step-events' id='step-2-1' style='display: none;'>
 <div class='event event-info' data-event-level='INFO'>
@@ -480,11 +447,6 @@ E   assert False</pre>
 <div class='test-name-container'>
 <span class='test-name'>User lifecycle</span>
 <span class='test-method-name'>test_user_lifecycle</span>
-<div class='history-strip'>
-<span class='history-label'>runs</span>
-<span class='history-dot passed' title='TestReport_All_2026.03.15_18.24.42.201.html · PASSED · 0.00s'></span>
-<span class='history-dot passed current' title='TestReport_All_2026.03.15_18.24.46.952.html · PASSED · 0.00s'></span>
-</div>
 </div>
 <span class='test-meta'>
 <span class='meta-item meta-duration'>0.00s</span>
@@ -498,7 +460,7 @@ E   assert False</pre>
 <span class='step-toggle-icon' id='step-icon-3-1'>&#9654;</span>
 <span class='step-name'>Step 1: Create user</span>
 <span class='step-event-count'>1</span>
-<span class='step-time'>18:24:46.911</span>
+<span class='step-time'>17:57:23.262</span>
 </div>
 <div class='step-events' id='step-3-1' style='display: none;'>
 <div class='event event-info' data-event-level='INFO'>
@@ -513,7 +475,7 @@ E   assert False</pre>
 <span class='step-toggle-icon' id='step-icon-3-2'>&#9654;</span>
 <span class='step-name'>Step 2: Update profile</span>
 <span class='step-event-count'>1</span>
-<span class='step-time'>18:24:46.911</span>
+<span class='step-time'>17:57:23.262</span>
 </div>
 <div class='step-events' id='step-3-2' style='display: none;'>
 <div class='event event-info' data-event-level='INFO'>
@@ -528,7 +490,7 @@ E   assert False</pre>
 <span class='step-toggle-icon' id='step-icon-3-3'>&#9654;</span>
 <span class='step-name'>Step 3: Verify changes</span>
 <span class='step-event-count'>1</span>
-<span class='step-time'>18:24:46.911</span>
+<span class='step-time'>17:57:23.262</span>
 </div>
 <div class='step-events' id='step-3-3' style='display: none;'>
 <div class='event event-info' data-event-level='INFO'>
@@ -546,11 +508,6 @@ E   assert False</pre>
 <div class='test-name-container'>
 <span class='test-name'>Steps</span>
 <span class='test-method-name'>test_steps</span>
-<div class='history-strip'>
-<span class='history-label'>runs</span>
-<span class='history-dot passed' title='TestReport_All_2026.03.15_18.24.42.201.html · PASSED · 0.00s'></span>
-<span class='history-dot passed current' title='TestReport_All_2026.03.15_18.24.46.952.html · PASSED · 0.00s'></span>
-</div>
 </div>
 <span class='test-meta'>
 <span class='meta-item meta-duration'>0.00s</span>
@@ -564,8 +521,7 @@ E   assert False</pre>
 <span class='step-toggle-icon' id='step-icon-4-1'>&#9654;</span>
 <span class='step-name'>Step 1: Create steps</span>
 <span class='step-event-count'>1</span>
-<span class='step-duration'>1ms</span>
-<span class='step-time'>18:24:46.909</span>
+<span class='step-time'>17:57:23.261</span>
 </div>
 <div class='step-events' id='step-4-1' style='display: none;'>
 <div class='event event-info' data-event-level='INFO'>
@@ -578,7 +534,7 @@ E   assert False</pre>
 <span class='step-toggle-icon' id='step-icon-4-1-0'>&#9654;</span>
 <span class='step-name'>Step 1.1: Create step 1</span>
 <span class='step-event-count'>1</span>
-<span class='step-time'>18:24:46.910</span>
+<span class='step-time'>17:57:23.261</span>
 </div>
 <div class='step-events' id='step-4-1-0' style='display: none;'>
 <div class='event event-info' data-event-level='INFO'>
@@ -591,7 +547,7 @@ E   assert False</pre>
 <span class='step-toggle-icon' id='step-icon-4-1-0-0'>&#9654;</span>
 <span class='step-name'>Step 1.1.1: Create step 2</span>
 <span class='step-event-count'>1</span>
-<span class='step-time'>18:24:46.910</span>
+<span class='step-time'>17:57:23.261</span>
 </div>
 <div class='step-events' id='step-4-1-0-0' style='display: none;'>
 <div class='event event-info' data-event-level='INFO'>
@@ -604,7 +560,7 @@ E   assert False</pre>
 <span class='step-toggle-icon' id='step-icon-4-1-0-0-0'>&#9654;</span>
 <span class='step-name'>Step 1.1.1.1: Create step 3</span>
 <span class='step-event-count'>1</span>
-<span class='step-time'>18:24:46.910</span>
+<span class='step-time'>17:57:23.261</span>
 </div>
 <div class='step-events' id='step-4-1-0-0-0' style='display: none;'>
 <div class='event event-info' data-event-level='INFO'>
@@ -617,7 +573,7 @@ E   assert False</pre>
 <span class='step-toggle-icon' id='step-icon-4-1-0-0-0-0'>&#9654;</span>
 <span class='step-name'>Step 1.1.1.1.1: Create step 4</span>
 <span class='step-event-count'>1</span>
-<span class='step-time'>18:24:46.910</span>
+<span class='step-time'>17:57:23.261</span>
 </div>
 <div class='step-events' id='step-4-1-0-0-0-0' style='display: none;'>
 <div class='event event-info' data-event-level='INFO'>
