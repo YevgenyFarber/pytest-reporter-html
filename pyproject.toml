@@ -45,5 +45,5 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["pytest_reporter_html"]
 
-[tool.pytest11]
+[project.entry-points.pytest11]
 reporter-html = "pytest_reporter_html.plugin"
