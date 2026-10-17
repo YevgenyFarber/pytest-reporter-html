@@ -168,13 +168,13 @@ class TestTestReporter:
         reporter.begin_phase("test_example")
         reporter.begin_step("login")
         reporter.end_step()
-        assert reporter.current_step is None, "current_step should be None after end_step"
+        assert reporter.current_step.name == "test_example", "end_step should return to the enclosing test phase"
 
     def test_end_step_with_failure_marks_step_failed(self, reporter: TestReporter) -> None:
         reporter.begin_phase("test_example")
         reporter.begin_step("login")
         reporter.end_step(failure_message="boom", stack_trace="trace")
-        last = reporter.report.steps[-1]
+        last = reporter.current_step.sub_steps[-1]
         assert last.status == "FAILED", f"Step status should be FAILED, got {last.status!r}"
         assert last.failureMessage == "boom", f"failureMessage mismatch: {last.failureMessage!r}"
 
@@ -243,7 +243,7 @@ class TestStep:
         finally:
             _active_reporter.reset(token)
 
-        step_names = [s.name for s in reporter.report.steps]
+        step_names = [s.name for s in reporter.report.steps[0].sub_steps]
         assert any("my step" in n for n in step_names), f"Expected 'my step' in steps, got {step_names}"
 
     def test_sync_context_manager_marks_failed_on_exception(self, reporter: TestReporter) -> None:
@@ -253,10 +253,11 @@ class TestStep:
             with pytest.raises(ValueError):
                 with step("failing step"):
                     raise ValueError("intentional error")
+            reporter.end_phase()
         finally:
             _active_reporter.reset(token)
 
-        failed = [s for s in reporter.report.steps if s.status == "FAILED"]
+        failed = [s for s in reporter.report.steps[0].sub_steps if s.status == "FAILED"]
         assert len(failed) == 1, f"Expected 1 failed step, got {failed}"
         assert "intentional error" in (
             failed[0].failureMessage or ""
@@ -272,11 +273,12 @@ class TestStep:
                 return "done"
 
             result = do_work()
+            reporter.end_phase()
         finally:
             _active_reporter.reset(token)
 
         assert result == "done", f"Decorator should return the function result, got {result!r}"
-        step_names = [s.name for s in reporter.report.steps]
+        step_names = [s.name for s in reporter.report.steps[0].sub_steps]
         assert any("decorated step" in n for n in step_names), f"Expected 'decorated step' in steps, got {step_names}"
 
     @pytest.mark.asyncio
@@ -290,7 +292,7 @@ class TestStep:
         finally:
             _active_reporter.reset(token)
 
-        step_names = [s.name for s in reporter.report.steps]
+        step_names = [s.name for s in reporter.report.steps[0].sub_steps]
         assert any("async step" in n for n in step_names), f"Expected 'async step' in steps, got {step_names}"
 
     @pytest.mark.asyncio
@@ -341,16 +343,17 @@ class TestStepStructure:
         reporter.add_event(ReportEvent(startTime=9, level="INFO", event="tail"))
         reporter.end_phase()
 
-        names = [s.name for s in reporter.report.steps]
-        assert names == ["test_example", "Step 1: one", "test_example", "Step 2: two", "test_example"], names
-        assert [len(s.events) for s in reporter.report.steps] == [0, 0, 3, 0, 1]
+        (phase,) = reporter.report.steps
+        assert phase.name == "test_example"
+        assert [s.name for s in phase.sub_steps] == ["Step 1: one", "Step 2: two"]
+        assert [e.event for e in phase.events] == ["after 0", "after 1", "after 2", "tail"]
 
     def test_multiple_steps_all_recorded_in_order(self, reporter: TestReporter) -> None:
         reporter.begin_phase("test_example")
         for name in ("a", "b", "c"):
             reporter.begin_step(name)
             reporter.end_step()
-        assert [s.name for s in reporter.report.steps if s.name.startswith("Step")] == [
+        assert [s.name for s in reporter.current_step.sub_steps] == [
             "Step 1: a",
             "Step 2: b",
             "Step 3: c",
@@ -364,7 +367,8 @@ class TestStepStructure:
         reporter.begin_step("inner 2")
         reporter.end_step()
         reporter.end_step()
-        outer = next(s for s in reporter.report.steps if s.name == "Step 1: outer")
+        outer = reporter.current_step.sub_steps[0]
+        assert outer.name == "Step 1: outer"
         assert [s.name for s in outer.sub_steps] == ["Step 1.1: inner 1", "Step 1.2: inner 2"]
 
 
