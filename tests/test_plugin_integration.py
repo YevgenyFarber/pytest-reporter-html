@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import pytest
 
-TEST_FILE = '''
+TEST_FILE = """
 import logging
 import pytest
 from pytest_reporter_html import step
@@ -48,11 +47,11 @@ def test_setup_error(broken):
 @pytest.mark.parametrize("val", ["a/b", "c d"])
 def test_param(val):
     pass
-'''
+"""
 
 
-@pytest.fixture
-def run(pytester: pytest.Pytester):
+@pytest.fixture(name="session_run")
+def _session_run(pytester: pytest.Pytester):
     pytester.makepyfile(test_demo=TEST_FILE)
     out = pytester.path / "out"
     result = pytester.runpytest_subprocess(
@@ -70,13 +69,13 @@ def _names(steps: list[dict]) -> list[str]:
 
 
 class TestPluginEndToEnd:
-    def test_every_test_has_a_json_report(self, run) -> None:
-        _, reports, _ = run
+    def test_every_test_has_a_json_report(self, session_run) -> None:
+        _, reports, _ = session_run
         assert len(reports) == 7, sorted(reports)  # incl. both parametrized ids (one has a '/')
         assert "test_param[a/b]" in reports
 
-    def test_statuses(self, run) -> None:
-        _, reports, _ = run
+    def test_statuses(self, session_run) -> None:
+        _, reports, _ = session_run
         got = {k: v["testStatus"] for k, v in reports.items()}
         assert got["test_multi"] == "PASSED"
         assert got["test_fail_in_step"] == "FAILED"
@@ -86,26 +85,26 @@ class TestPluginEndToEnd:
         assert "not today" in reports["test_skip_in_body"]["failureMessage"]
         assert "marked" in reports["test_skip_marker"]["failureMessage"]
 
-    def test_all_steps_and_trailing_logs_recorded(self, run) -> None:
-        _, reports, _ = run
+    def test_all_steps_and_trailing_logs_recorded(self, session_run) -> None:
+        _, reports, _ = session_run
         steps = reports["test_multi"]["steps"]
         assert _names(steps) == ["test_multi", "Step 1: one", "Step 2: silent", "Step 3: three", "test_multi"]
         assert steps[-1]["events"][0]["event"] == "after"
 
-    def test_failed_step_is_marked(self, run) -> None:
-        _, reports, _ = run
+    def test_failed_step_is_marked(self, session_run) -> None:
+        _, reports, _ = session_run
         failed = [s for s in reports["test_fail_in_step"]["steps"] if s["status"] == "FAILED"]
         assert _names(failed) == ["Step 2: b"]
 
-    def test_html_report_contents(self, run) -> None:
-        _, _, out = run
+    def test_html_report_contents(self, session_run) -> None:
+        _, _, out = session_run
         html = (out / "TestReport_Latest.html").read_text(encoding="utf-8")
         assert "<title>T1</title>" in html
         assert "<span class='step-name'>Step 2: silent</span>" in html
         assert "skipped</span>" in html
 
-    def test_json_kept_with_flag(self, run) -> None:
-        _, _, out = run
+    def test_json_kept_with_flag(self, session_run) -> None:
+        _, _, out = session_run
         assert (out / "json").is_dir()
 
     def test_json_removed_without_flag(self, pytester: pytest.Pytester) -> None:
@@ -117,8 +116,7 @@ class TestPluginEndToEnd:
 
     def test_json_kept_when_report_generation_fails(self, pytester: pytest.Pytester) -> None:
         pytester.makepyfile(
-            conftest="import pytest_reporter_html.plugin as p\n"
-            "p.generate_report = lambda *a, **k: None\n",
+            conftest="import pytest_reporter_html.plugin as p\n" "p.generate_report = lambda *a, **k: None\n",
             test_demo="def test_a():\n    pass\n",
         )
         out = pytester.path / "out"
