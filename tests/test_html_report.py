@@ -231,6 +231,22 @@ class TestStepRendering:
         html = _render(tmp_path, [_step("Step 1: silent", 1000)])
         assert "step-header no-toggle'>" in html
 
+    def test_events_and_sub_steps_render_in_chronological_order(self, tmp_path: Path) -> None:
+        phase = _step(
+            "test_x",
+            1000,
+            [
+                {"startTime": 1001, "level": "INFO", "event": "before-marker"},
+                {"startTime": 1301, "level": "INFO", "event": "between-marker"},
+                {"startTime": 1501, "level": "INFO", "event": "after-marker"},
+            ],
+        )
+        phase["subSteps"] = [_step("Step 1: one", 1100), _step("Step 2: two", 1400)]
+        html = _render(tmp_path, [phase])
+        order = ["before-marker", "Step 1: one", "between-marker", "Step 2: two", "after-marker"]
+        positions = [html.index(marker) for marker in order]
+        assert positions == sorted(positions), f"wrong order: {dict(zip(order, positions, strict=False))}"
+
     def test_uses_stored_test_name_not_file_name(self, tmp_path: Path) -> None:
         _write_json(
             tmp_path,

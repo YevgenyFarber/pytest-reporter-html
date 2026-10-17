@@ -45,6 +45,7 @@ _LOG_LEVEL_RE = re.compile(r"[^a-z0-9_-]")
 
 @dataclass
 class TestEvent:
+    startTime: int = 0
     level: str = ""
     event: str = ""
     type: str | None = None
@@ -206,6 +207,7 @@ def _parse_test_result(filename: str, root: dict) -> TestResult:
         for ev_data in step_data.get("events", []):
             ts.events.append(
                 TestEvent(
+                    startTime=ev_data.get("startTime", 0),
                     level=ev_data.get("level", "INFO"),
                     event=ev_data.get("event", ""),
                     type=ev_data.get("type"),
@@ -234,6 +236,69 @@ def _parse_test_result(filename: str, root: dict) -> TestResult:
 # ---------------------------------------------------------------------------
 # Rendering
 # ---------------------------------------------------------------------------
+
+
+def _merge_children(step: TestStep) -> list[tuple[str, int, TestEvent | TestStep]]:
+    """Interleave a step's events and sub-steps chronologically.
+
+    The sort is stable and events come first, so same-millisecond ties keep
+    a log line ahead of the step that started right after it.
+    """
+    items: list[tuple[str, int, TestEvent | TestStep]] = [("event", i, ev) for i, ev in enumerate(step.events)]
+    items += [("step", i, sub) for i, sub in enumerate(step.sub_steps)]
+    return sorted(items, key=lambda item: item[2].startTime)
+
+
+def _render_event(ev: TestEvent, uid: str) -> list[str]:
+    h: list[str] = []
+    ev_class = f"event-{_LOG_LEVEL_RE.sub('', ev.level.lower())}"
+    level = _escape_html(ev.level)
+    h.append(f"<div class='event {ev_class}' data-event-level='{level}'>\n")
+    h.append(f"<span class='event-level'>{level}</span>\n")
+
+    if ev.sourceFileName or ev.sourceLineNumber is not None:
+        loc_parts = []
+        if ev.sourceFileName:
+            loc_parts.append(_escape_html(ev.sourceFileName))
+        if ev.sourceLineNumber is not None:
+            if ev.sourceFileName:
+                loc_parts.append(":")
+            loc_parts.append(str(ev.sourceLineNumber))
+        h.append(f"<span class='event-source-location'>{''.join(loc_parts)}</span>\n")
+
+    if ev.type == "json":
+        pretty = _try_pretty_json(ev.event)
+        display_j = _format_json_for_display(pretty if pretty else ev.event)
+        data_orig = _escape_html(ev.event).replace("'", "&#39;")
+        h += [
+            "<div class='json-container'>\n",
+            "<div class='json-header'>\n",
+            "<span class='json-label'>JSON</span>\n",
+            f"<button class='copy-btn' onclick='copyToClipboard(\"{uid}\", this)'>&#128203;</button>\n",
+            "</div>\n",
+            f"<pre class='event-json' id='json-{uid}' data-original='{data_orig}'>{display_j}</pre>\n",
+            "</div>\n",
+        ]
+    elif ev.event.startswith("Stack Trace:"):
+        st_content = ev.event[len("Stack Trace:") :].strip()
+        h += [
+            "<div class='event-stacktrace-section'>\n",
+            f"<div class='event-stacktrace-toggle' onclick='toggleEventStackTrace(\"{uid}\")'>\n",
+            f"<span class='event-stacktrace-icon open' id='event-stacktrace-icon-{uid}'>&#9654;</span>\n",
+            "<strong>Stack Trace</strong>\n",
+            "</div>\n",
+            f"<pre class='event-stacktrace-content' id='event-stacktrace-{uid}' style='display: block;'>"
+            f"{_escape_html(st_content)}</pre>\n",
+            "</div>\n",
+        ]
+    elif "\nTraceback (most recent call last):" in ev.event:
+        h.append(_render_event_with_traceback(ev.event, uid))
+    else:
+        h.append(_format_event_with_json(ev.event))
+        h.append("\n")
+
+    h.append("</div>\n")
+    return h
 
 
 def _render_step_block(
@@ -275,60 +340,11 @@ def _render_step_block(
     step_display = "block" if step_open else "none"
     h.append(f"<div class='step-events' id='{step_id}' style='display: {step_display};'>\n")
 
-    for ei, ev in enumerate(step.events):
-        ev_class = f"event-{_LOG_LEVEL_RE.sub('', ev.level.lower())}"
-        uid = f"{step_id}-{ei}"
-        level = _escape_html(ev.level)
-        h.append(f"<div class='event {ev_class}' data-event-level='{level}'>\n")
-        h.append(f"<span class='event-level'>{level}</span>\n")
-
-        if ev.sourceFileName or ev.sourceLineNumber is not None:
-            loc_parts = []
-            if ev.sourceFileName:
-                loc_parts.append(_escape_html(ev.sourceFileName))
-            if ev.sourceLineNumber is not None:
-                if ev.sourceFileName:
-                    loc_parts.append(":")
-                loc_parts.append(str(ev.sourceLineNumber))
-            h.append(f"<span class='event-source-location'>{''.join(loc_parts)}</span>\n")
-
-        if ev.type == "json":
-            pretty = _try_pretty_json(ev.event)
-            display_j = _format_json_for_display(pretty if pretty else ev.event)
-            data_orig = _escape_html(ev.event).replace("'", "&#39;")
-            h += [
-                "<div class='json-container'>\n",
-                "<div class='json-header'>\n",
-                "<span class='json-label'>JSON</span>\n",
-                f"<button class='copy-btn' onclick='copyToClipboard(\"{uid}\", this)'>&#128203;</button>\n",
-                "</div>\n",
-                f"<pre class='event-json' id='json-{uid}' data-original='{data_orig}'>{display_j}</pre>\n",
-                "</div>\n",
-            ]
-        elif ev.event.startswith("Stack Trace:"):
-            st_content = ev.event[len("Stack Trace:") :].strip()
-            h += [
-                "<div class='event-stacktrace-section'>\n",
-                f"<div class='event-stacktrace-toggle' onclick='toggleEventStackTrace(\"{uid}\")'>\n",
-                f"<span class='event-stacktrace-icon open' id='event-stacktrace-icon-{uid}'>&#9654;</span>\n",
-                "<strong>Stack Trace</strong>\n",
-                "</div>\n",
-                f"<pre class='event-stacktrace-content' id='event-stacktrace-{uid}' style='display: block;'>"
-                f"{_escape_html(st_content)}</pre>\n",
-                "</div>\n",
-            ]
-        elif "\nTraceback (most recent call last):" in ev.event:
-            h.append(_render_event_with_traceback(ev.event, uid))
+    for kind, idx, child in _merge_children(step):
+        if kind == "event":
+            h += _render_event(child, f"{step_id}-{idx}")
         else:
-            h.append(_format_event_with_json(ev.event))
-            h.append("\n")
-
-        h.append("</div>\n")
-
-    for ssi, sub in enumerate(step.sub_steps):
-        sub_id = f"{step_id}-{ssi}"
-        sub_icon_id = f"{step_icon_id}-{ssi}"
-        h += _render_step_block(sub, sub_id, sub_icon_id, auto_open)
+            h += _render_step_block(child, f"{step_id}-{idx}", f"{step_icon_id}-{idx}", auto_open)
 
     h += ["</div>\n", "</div>\n"]
     return h
