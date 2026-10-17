@@ -87,13 +87,15 @@ class TestPluginEndToEnd:
 
     def test_all_steps_and_trailing_logs_recorded(self, session_run) -> None:
         _, reports, _ = session_run
-        steps = reports["test_multi"]["steps"]
-        assert _names(steps) == ["test_multi", "Step 1: one", "Step 2: silent", "Step 3: three", "test_multi"]
-        assert steps[-1]["events"][0]["event"] == "after"
+        (phase,) = reports["test_multi"]["steps"]
+        assert phase["name"] == "test_multi"
+        assert _names(phase["subSteps"]) == ["Step 1: one", "Step 2: silent", "Step 3: three"]
+        assert phase["events"][-1]["event"] == "after"
 
     def test_failed_step_is_marked(self, session_run) -> None:
         _, reports, _ = session_run
-        failed = [s for s in reports["test_fail_in_step"]["steps"] if s["status"] == "FAILED"]
+        (phase,) = reports["test_fail_in_step"]["steps"]
+        failed = [s for s in phase["subSteps"] if s["status"] == "FAILED"]
         assert _names(failed) == ["Step 2: b"]
 
     def test_html_report_contents(self, session_run) -> None:

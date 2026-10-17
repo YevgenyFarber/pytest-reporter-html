@@ -160,11 +160,10 @@ class TestReporter:
 
     def begin_step(self, name: str) -> None:
         self._orphan_step = None
-        if self._is_phase:
-            self._close_step()
         if self._current_step is not None:
             self._step_stack.append(self._current_step)
-        depth = len(self._step_stack)
+        # steps nest inside the open phase (e.g. the test body) but are numbered from 1
+        depth = len(self._step_stack) - (1 if self._is_phase else 0)
         while len(self._number_parts) <= depth:  # pylint: disable=W0149
             self._number_parts.append(0)
         for i in range(depth + 1, len(self._number_parts)):
@@ -175,7 +174,6 @@ class TestReporter:
             startTime=_now_millis(),
             name=f"Step {number}: {name}",
         )
-        self._is_phase = False
 
     def end_step(
         self,
@@ -202,7 +200,8 @@ class TestReporter:
         # Drop empty, passing Setup/Teardown phases to keep reports clean.
         if is_phase and self._report.steps:
             last = self._report.steps[-1]
-            if last.name in {"Setup", "Teardown"} and not last.events and last.status == "PASSED":
+            is_empty = not last.events and not last.sub_steps
+            if last.name in {"Setup", "Teardown"} and is_empty and last.status == "PASSED":
                 self._report.steps.pop()
 
     def add_event(self, event: ReportEvent) -> None:
