@@ -9,6 +9,8 @@ import pytest
 
 from pytest_reporter_html.helpers import (
     _extract_failure,
+    _extract_skip_reason,
+    _format_json_for_display,
     _module_label,
     _now_millis,
     _worse,
@@ -109,3 +111,52 @@ class TestModuleLabel:
 
         result = _module_label(item)
         assert result is None, f"Expected None when module has no __name__, got {result!r}"
+
+
+# ---------------------------------------------------------------------------
+# Regression tests: JSON highlighting
+# ---------------------------------------------------------------------------
+
+
+class TestJsonHighlighting:
+    def test_keys_and_strings_are_highlighted(self) -> None:
+        out = _format_json_for_display('{"name": "bob", "n": 1.5, "ok": true, "x": null}')
+        assert "<span class='json-key'>&quot;name&quot;</span>" in out, out
+        assert "<span class='json-string'>&quot;bob&quot;</span>" in out, out
+        assert "<span class='json-number'>1.5</span>" in out, out
+        assert "<span class='json-literal'>true</span>" in out, out
+        assert "<span class='json-literal'>null</span>" in out, out
+
+    def test_numbers_inside_strings_are_not_highlighted(self) -> None:
+        out = _format_json_for_display('{"a": "x 12 y"}')
+        assert "json-number" not in out, out
+
+    def test_apostrophe_entity_is_not_corrupted(self) -> None:
+        out = _format_json_for_display('{"a": "it\'s"}')
+        assert "it&#39;s" in out and "json-number" not in out, out
+
+    def test_markup_in_values_is_escaped(self) -> None:
+        out = _format_json_for_display('{"a": "<script>"}')
+        assert "<script>" not in out and "&lt;script&gt;" in out, out
+
+
+class TestRobustHelpers:
+    def test_extract_failure_handles_missing_reprcrash(self) -> None:
+        report = MagicMock()
+        report.longrepr = MagicMock(reprcrash=None)
+        msg, trace = _extract_failure(report)
+        assert msg and trace, (msg, trace)
+
+    def test_module_label_handles_items_without_module(self) -> None:
+        item = MagicMock(spec=[])  # e.g. doctest / non-python collectors: no .module / .cls
+        assert _module_label(item) is None
+
+    def test_skip_reason_from_tuple_longrepr(self) -> None:
+        report = MagicMock(spec=["longrepr"])
+        report.longrepr = ("f.py", 3, "Skipped: not today")
+        assert _extract_skip_reason(report) == "not today"
+
+    def test_skip_reason_for_xfail(self) -> None:
+        report = MagicMock()
+        report.wasxfail = "known bug"
+        assert _extract_skip_reason(report) == "xfail: known bug"

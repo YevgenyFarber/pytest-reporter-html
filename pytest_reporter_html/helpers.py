@@ -34,15 +34,29 @@ def _worse(a: str, b: str) -> str:
 def _extract_failure(report: pytest.TestReport) -> tuple[str, str]:
     """Extract (failure_message, stack_trace) from a failed TestReport."""
     longrepr = report.longrepr
-    msg = str(longrepr.reprcrash.message) if hasattr(longrepr, "reprcrash") else str(longrepr)
+    crash = getattr(longrepr, "reprcrash", None)
+    msg = str(crash.message) if crash is not None else str(longrepr)
     return msg, str(longrepr)
+
+
+def _extract_skip_reason(report: pytest.TestReport) -> str:
+    """Extract the human-readable skip/xfail reason from a skipped TestReport."""
+    if (wasxfail := getattr(report, "wasxfail", None)) is not None:
+        return f"xfail: {wasxfail}" if wasxfail else "xfail"
+    longrepr = report.longrepr
+    if isinstance(longrepr, tuple) and len(longrepr) == 3:
+        return str(longrepr[2]).removeprefix("Skipped: ")
+    return str(longrepr) if longrepr else "skipped"
 
 
 def _module_label(item: pytest.Item) -> str | None:
     """Return a human-readable class/module label for the test item."""
-    if item.cls is not None:  # type: ignore[attr-defined]
-        return f"{item.module.__name__}.{item.cls.__name__}"  # type: ignore[attr-defined]
-    return getattr(item.module, "__name__", None)  # type: ignore[attr-defined]
+    # non-Python items (doctest, yaml, ...) have no module
+    if (module := getattr(item, "module", None)) is None:
+        return None
+    if (cls := getattr(item, "cls", None)) is not None:
+        return f"{module.__name__}.{cls.__name__}"
+    return getattr(module, "__name__", None)
 
 
 # ---------------------------------------------------------------------------
@@ -129,37 +143,35 @@ def _try_pretty_json(text: str) -> str | None:
         return None
 
 
+_JSON_TOKEN = re.compile(
+    r'("(?:[^"\\]|\\.)*")(\s*:)?'  # string (group 1), optionally followed by ':' => key (group 2)
+    r"|(?<![\w.])(true|false|null)(?![\w.])"  # literal (group 3)
+    r"|(?<![\w.])(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(?![\w.])"  # number (group 4)
+)
+
+
 def _format_json_for_display(json_str: str) -> str:
-    """Apply syntax-highlight spans to a JSON string for HTML display."""
+    """Apply syntax-highlight spans to a JSON string for HTML display.
+
+    Tokenises the *raw* text and escapes each piece afterwards, so quotes and
+    apostrophes inside values are never mistaken for markup or numbers.
+    """
     if not json_str or not json_str.strip():
         return ""
-    escaped = _escape_html(json_str)
-
-    counter = 0
-    placeholders: dict[str, str] = {}
-
-    def _replace_key(m: re.Match) -> str:
-        nonlocal counter
-        ph = f"___JSON_KEY_PLACEHOLDER_{counter}___"
-        counter += 1
-        placeholders[ph] = f"<span class='json-key'>{m.group(1)}</span>"
-        return ph
-
-    escaped = re.sub(r'("(?:[^"\\]|\\.)+"\s*:)', _replace_key, escaped)
-    escaped = re.sub(r'("(?:[^"\\]|\\.)+\")', r"<span class='json-string'>\1</span>", escaped)
-    for ph, replacement in placeholders.items():
-        escaped = escaped.replace(ph, replacement)
-    escaped = re.sub(
-        r'(?<!["\w])(\b\d+\.?\d*\b)(?!["\w])',
-        r"<span class='json-number'>\1</span>",
-        escaped,
-    )
-    escaped = re.sub(
-        r'(?<!["\w])\b(true|false|null)\b(?!["\w])',
-        r"<span class='json-literal'>\1</span>",
-        escaped,
-    )
-    return escaped
+    out: list[str] = []
+    pos = 0
+    for m in _JSON_TOKEN.finditer(json_str):
+        out.append(_escape_html(json_str[pos : m.start()]))
+        if m.group(1) is not None:
+            css = "json-key" if m.group(2) else "json-string"
+            out.append(f"<span class='{css}'>{_escape_html(m.group(1))}</span>{_escape_html(m.group(2) or '')}")
+        elif m.group(3) is not None:
+            out.append(f"<span class='json-literal'>{m.group(3)}</span>")
+        else:
+            out.append(f"<span class='json-number'>{m.group(4)}</span>")
+        pos = m.end()
+    out.append(_escape_html(json_str[pos:]))
+    return "".join(out)
 
 
 def _format_event_with_json(event_text: str) -> str:  # pylint: disable=R1260, R0914, R0912, R0915

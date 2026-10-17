@@ -11,6 +11,7 @@ import functools
 import inspect
 import json
 import os
+import re
 import traceback
 from collections.abc import Callable
 from contextvars import ContextVar
@@ -23,6 +24,8 @@ from custom_python_logger import get_logger
 from .helpers import _now_millis
 
 logger = get_logger(__name__)
+
+_UNSAFE_FILENAME_CHARS = re.compile(r"[^\w.\-]+")
 
 
 @dataclass
@@ -89,6 +92,7 @@ class JsonReport:
     steps: list[ReportStep] = field(default_factory=list)
     testStatus: str = "PASSED"
     className: str | None = None
+    testName: str | None = None
     failureMessage: str | None = None
     stackTrace: str | None = None
 
@@ -99,6 +103,8 @@ class JsonReport:
         }
         if self.className:
             d["className"] = self.className
+        if self.testName:
+            d["testName"] = self.testName
         if self.failureMessage is not None:
             d["failureMessage"] = self.failureMessage
         if self.stackTrace is not None:
@@ -134,6 +140,7 @@ class TestReporter:
         self._step_stack: list[ReportStep] = []
         self._number_parts: list[int] = [0]
         self._is_phase = False
+        self._orphan_step: ReportStep | None = None
 
     @property
     def report(self) -> JsonReport:
@@ -152,6 +159,7 @@ class TestReporter:
         return self._number_parts[0] if self._number_parts else 0
 
     def begin_step(self, name: str) -> None:
+        self._orphan_step = None
         if self._is_phase:
             self._close_step()
         if self._current_step is not None:
@@ -177,6 +185,7 @@ class TestReporter:
         self._close_step(failure_message, stack_trace)
 
     def begin_phase(self, name: str) -> None:
+        self._orphan_step = None
         self._close_step()
         self._current_step = ReportStep(startTime=_now_millis(), name=name)
         self._is_phase = True
@@ -199,15 +208,18 @@ class TestReporter:
     def add_event(self, event: ReportEvent) -> None:
         if self._current_step is not None:
             self._current_step.events.append(event)
+        elif self._orphan_step is not None and self._report.steps and self._report.steps[-1] is self._orphan_step:
+            # consecutive events logged between steps share one step instead of one step each
+            self._orphan_step.events.append(event)
+            self._orphan_step.endTime = event.startTime
         else:
-            self._report.steps.append(
-                ReportStep(
-                    startTime=event.startTime,
-                    endTime=event.startTime,
-                    name=self.test_name,
-                    events=[event],
-                )
+            self._orphan_step = ReportStep(
+                startTime=event.startTime,
+                endTime=event.startTime,
+                name=self.test_name,
+                events=[event],
             )
+            self._report.steps.append(self._orphan_step)
 
     def finalize(
         self,
@@ -217,6 +229,7 @@ class TestReporter:
     ) -> str | None:
         """Close any open step, set final status, write JSON. Returns the file path."""
         self._close_step()
+        self._report.testName = self.test_name
         self._report.testStatus = status
         self._report.failureMessage = failure_message
         self._report.stackTrace = stack_trace
@@ -243,11 +256,21 @@ class TestReporter:
             self._current_step = None
             self._is_phase = False
 
+    def _unique_path(self, directory: Path) -> Path:
+        """Build a filesystem-safe, non-colliding JSON path (param ids may contain ``/`` etc.)."""
+        safe_name = _UNSAFE_FILENAME_CHARS.sub("_", self.test_name).strip("_") or "test"
+        path = directory / f"{safe_name}_{self._timestamp}.json"
+        counter = 1
+        while path.exists():  # pylint: disable=W0149
+            counter += 1
+            path = directory / f"{safe_name}_{self._timestamp}_{counter}.json"
+        return path
+
     def _write(self) -> str | None:
         try:
             out = Path(self.output_dir) / "json"
             out.mkdir(parents=True, exist_ok=True)
-            path = out / f"{self.test_name}_{self._timestamp}.json"
+            path = self._unique_path(out)
             path.write_text(
                 json.dumps(self._report.to_dict(), indent=2, ensure_ascii=False),
                 encoding="utf-8",
