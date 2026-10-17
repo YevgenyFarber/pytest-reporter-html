@@ -193,3 +193,84 @@ class TestGenerateReport:
         assert result is not None, "Expected a file path"
         content = Path(result).read_text(encoding="utf-8")
         assert "My Custom Title" in content, "Custom title should appear in HTML output"
+
+
+# ---------------------------------------------------------------------------
+# Regression tests: rendering
+# ---------------------------------------------------------------------------
+
+
+def _step(name: str, start: int, events: list[dict] | None = None, status: str = "PASSED") -> dict:
+    return {"name": name, "startTime": start, "endTime": start + 10, "status": status, "events": events or []}
+
+
+def _render(tmp_path: Path, steps: list[dict], status: str = "PASSED", **extra) -> str:
+    _write_json(
+        tmp_path,
+        "test_x_1.json",
+        {"testStatus": status, "className": "c", "testName": "test_x", "steps": steps, **extra},
+    )
+    return Path(generate_report(str(tmp_path))).read_text(encoding="utf-8")
+
+
+class TestStepRendering:
+    def test_steps_without_events_are_still_rendered(self, tmp_path: Path) -> None:
+        html = _render(
+            tmp_path,
+            [
+                _step("test_x", 1000),
+                _step("Step 1: one", 1100, [{"level": "INFO", "event": "hi"}]),
+                _step("Step 2: silent", 1200),
+                _step("Step 3: three", 1300, [{"level": "INFO", "event": "yo"}]),
+            ],
+        )
+        for name in ("Step 1: one", "Step 2: silent", "Step 3: three"):
+            assert f"<span class='step-name'>{name}</span>" in html, f"{name} missing from HTML"
+
+    def test_unexpandable_step_has_no_click_handler(self, tmp_path: Path) -> None:
+        html = _render(tmp_path, [_step("Step 1: silent", 1000)])
+        assert "step-header no-toggle'>" in html
+
+    def test_uses_stored_test_name_not_file_name(self, tmp_path: Path) -> None:
+        _write_json(
+            tmp_path,
+            "weird_name_1_2.json",
+            {"testStatus": "PASSED", "testName": "test_real_name", "steps": [_step("t", 1)]},
+        )
+        html = Path(generate_report(str(tmp_path))).read_text(encoding="utf-8")
+        assert "test_real_name" in html
+
+
+class TestStatusRendering:
+    def test_skipped_is_not_counted_as_failed(self, tmp_path: Path) -> None:
+        html = _render(tmp_path, [_step("t", 1)], status="SKIPPED", failureMessage="not today")
+        assert "<strong>1</strong> skipped" in html
+        assert "failed</span>" not in html.split("</header>")[0]
+        assert "data-status='SKIPPED'" in html and "test-item skipped" in html
+        assert "<div class='failure-label'>SKIPPED</div>" in html
+
+    def test_error_is_expanded_and_filterable(self, tmp_path: Path) -> None:
+        html = _render(
+            tmp_path,
+            [_step("Setup", 1, [{"level": "INFO", "event": "e"}], "FAILED")],
+            status="ERROR",
+            failureMessage="boom",
+        )
+        assert "data-status='ERROR'" in html
+        assert "<option value='ERROR'>Error</option>" in html
+        assert "<option value='SKIPPED'>Skipped</option>" in html
+        assert "<div class='failure-label'>ERROR</div>" in html
+
+    def test_status_without_steps_is_preserved(self, tmp_path: Path) -> None:
+        html = _render(tmp_path, [], status="SKIPPED", failureMessage="why")
+        assert "data-status='SKIPPED'" in html
+
+    def test_tests_listed_in_execution_order(self, tmp_path: Path) -> None:
+        _write_json(
+            tmp_path, "b_1.json", {"testStatus": "PASSED", "testName": "test_second", "steps": [_step("x", 2000)]}
+        )
+        _write_json(
+            tmp_path, "a_1.json", {"testStatus": "PASSED", "testName": "test_first", "steps": [_step("x", 1000)]}
+        )
+        html = Path(generate_report(str(tmp_path))).read_text(encoding="utf-8")
+        assert html.index("test_first") < html.index("test_second")

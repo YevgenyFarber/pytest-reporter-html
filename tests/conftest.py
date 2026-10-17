@@ -8,7 +8,7 @@ import pytest
 
 from pytest_reporter_html.reporter import TestReporter
 
-pytest_plugins = ["pytest_reporter_html.plugin"]
+pytest_plugins = ["pytester"]
 
 
 @pytest.fixture

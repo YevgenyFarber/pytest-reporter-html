@@ -57,6 +57,8 @@ pytest --report-html
 |---|---|---|
 | `--report-html` | off | Generate an aggregated HTML report at session end |
 | `--keep-json` | off | Keep intermediate per-test JSON files after HTML generation |
+| `--report-html-dir` | `logs/test-reports` | Directory for the JSON/HTML output |
+| `--report-html-title` | `Test Report` | Title of the HTML report |
 
 By default, the JSON files written during the run are deleted once the HTML report is produced. Pass `--keep-json` if you need them for other tooling:
 

@@ -322,3 +322,74 @@ class TestStep:
         s = step("test")
         result = s.__exit__(None, None, None)
         assert result is False, f"__exit__ should return False to propagate exceptions, got {result}"
+
+
+# ---------------------------------------------------------------------------
+# Regression tests: steps / orphan events / file names
+# ---------------------------------------------------------------------------
+
+
+class TestStepStructure:
+    def test_events_between_steps_share_one_step(self, reporter: TestReporter) -> None:
+        reporter.begin_phase("test_example")
+        reporter.begin_step("one")
+        reporter.end_step()
+        for i in range(3):
+            reporter.add_event(ReportEvent(startTime=i, level="INFO", event=f"after {i}"))
+        reporter.begin_step("two")
+        reporter.end_step()
+        reporter.add_event(ReportEvent(startTime=9, level="INFO", event="tail"))
+        reporter.end_phase()
+
+        names = [s.name for s in reporter.report.steps]
+        assert names == ["test_example", "Step 1: one", "test_example", "Step 2: two", "test_example"], names
+        assert [len(s.events) for s in reporter.report.steps] == [0, 0, 3, 0, 1]
+
+    def test_multiple_steps_all_recorded_in_order(self, reporter: TestReporter) -> None:
+        reporter.begin_phase("test_example")
+        for name in ("a", "b", "c"):
+            reporter.begin_step(name)
+            reporter.end_step()
+        assert [s.name for s in reporter.report.steps if s.name.startswith("Step")] == [
+            "Step 1: a",
+            "Step 2: b",
+            "Step 3: c",
+        ]
+
+    def test_nested_steps_are_numbered_hierarchically(self, reporter: TestReporter) -> None:
+        reporter.begin_phase("test_example")
+        reporter.begin_step("outer")
+        reporter.begin_step("inner 1")
+        reporter.end_step()
+        reporter.begin_step("inner 2")
+        reporter.end_step()
+        reporter.end_step()
+        outer = next(s for s in reporter.report.steps if s.name == "Step 1: outer")
+        assert [s.name for s in outer.sub_steps] == ["Step 1.1: inner 1", "Step 1.2: inner 2"]
+
+
+class TestJsonFileName:
+    def test_unsafe_characters_in_test_name_are_sanitised(self, tmp_path: Path, fixed_timestamp: None) -> None:
+        r = TestReporter(test_name="test_x[a/b:c]", class_name=None, output_dir=str(tmp_path))
+        r.begin_phase("t")
+        r.end_phase()
+        path = r.finalize(status="PASSED")
+        assert path is not None, "a '/' in a parametrize id must not make the report vanish"
+        assert Path(path).parent == tmp_path / "json"
+
+    def test_same_name_and_timestamp_does_not_overwrite(self, tmp_path: Path, fixed_timestamp: None) -> None:
+        paths = []
+        for _ in range(3):
+            r = TestReporter(test_name="test_dup", class_name=None, output_dir=str(tmp_path))
+            r.begin_phase("t")
+            r.end_phase()
+            paths.append(r.finalize(status="PASSED"))
+        assert len(set(paths)) == 3, paths
+        assert len(list((tmp_path / "json").glob("*.json"))) == 3
+
+    def test_test_name_is_stored_in_json(self, reporter: TestReporter, fixed_timestamp: None) -> None:
+        reporter.test_name = "renamed"
+        reporter.begin_phase("t")
+        reporter.end_phase()
+        path = reporter.finalize(status="PASSED")
+        assert json.loads(Path(path).read_text())["testName"] == "renamed"

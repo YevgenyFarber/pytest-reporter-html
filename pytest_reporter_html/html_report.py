@@ -17,6 +17,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
+from custom_python_logger import get_logger
+
 from .helpers import (
     _escape_html,
     _format_class_name,
@@ -28,6 +30,12 @@ from .helpers import (
     _render_event_with_traceback,
     _try_pretty_json,
 )
+
+logger = get_logger(__name__)
+
+PASSED, FAILED, SKIPPED, ERROR = "PASSED", "FAILED", "SKIPPED", "ERROR"
+_FAILURE_LABELS = {FAILED: "FAILURE", ERROR: "ERROR", SKIPPED: "SKIPPED"}
+_LOG_LEVEL_RE = re.compile(r"[^a-z0-9_-]")
 
 # ---------------------------------------------------------------------------
 # Data classes
@@ -101,13 +109,13 @@ def generate_report(report_directory: str, *, title: str = "Test Report") -> str
                 with open(jf, encoding="utf-8") as f:
                     root = json.load(f)
                 test_results.append(_parse_test_result(jf.name, root))
-            except Exception:
-                print(f"  Failed to parse: {jf.name}")
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                logger.warning(f"  Failed to parse: {jf.name}: {exc}")
 
         if not test_results:
             return None
 
-        test_results.sort(key=lambda r: r.startTime, reverse=True)
+        test_results.sort(key=lambda r: r.startTime)
 
         grouped: dict[str, list[TestResult]] = {}
         for tr in test_results:
@@ -124,8 +132,8 @@ def generate_report(report_directory: str, *, title: str = "Test Report") -> str
 
         return str(latest)
 
-    except Exception as exc:
-        print(f"  Failed to generate aggregated report: {exc}")
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        logger.error(f"  Failed to generate aggregated report: {exc}")
         return None
 
 
@@ -138,12 +146,24 @@ def _parse_test_result(filename: str, root: dict) -> TestResult:
     result = TestResult(filename=filename)
 
     if not (steps_data := root.get("steps", [])):
+        # e.g. skipped during setup: no steps, but status/reason are still recorded at the top level
+        result.status = root.get("testStatus", PASSED)
+        result.failureMessage = root.get("failureMessage")
+        result.stackTrace = root.get("stackTrace")
+        if test_name := root.get("testName"):
+            result.className = root.get("className") or "Tests"
+            result.methodName = test_name
+            result.testName = _format_test_name(test_name)
         return result
 
     first = steps_data[0]
     step_name = first.get("name", "")
 
-    if " - " in step_name:
+    if test_name := root.get("testName"):
+        result.className = root.get("className") or "Tests"
+        result.methodName = test_name
+        result.testName = _format_test_name(test_name)
+    elif " - " in step_name:
         parts = step_name.split(" - ", 1)
         result.className = parts[0].strip()
         method_part = parts[1].strip()
@@ -169,10 +189,10 @@ def _parse_test_result(filename: str, root: dict) -> TestResult:
             endTime=step_data.get("endTime", 0),
             status=step_data.get("status", "PASSED"),
         )
-        if ts.status == "FAILED":
+        if ts.status == FAILED:
             ts.failureMessage = step_data.get("failureMessage")
             ts.stackTrace = step_data.get("stackTrace")
-            if result.status == "FAILED":
+            if result.status in {FAILED, ERROR}:
                 if ts.failureMessage and not result.failureMessage:
                     result.failureMessage = ts.failureMessage
                 if ts.stackTrace and not result.stackTrace:
@@ -200,7 +220,7 @@ def _parse_test_result(filename: str, root: dict) -> TestResult:
     if root.get("stackTrace"):
         result.stackTrace = root["stackTrace"]
 
-    result.duration = steps_data[-1].get("endTime", 0) - result.startTime
+    result.duration = max(s.get("endTime", 0) for s in steps_data) - result.startTime
 
     return result
 
@@ -218,17 +238,23 @@ def _render_step_block(
 ) -> list[str]:
     has_events = bool(step.events)
     has_sub = bool(step.sub_steps)
-    if not has_events and not has_sub and step.status == "PASSED":
-        return []
+    has_content = has_events or has_sub
 
-    step_status = "step-passed" if step.status == "PASSED" else "step-failed"
-    step_open = (has_events or has_sub) and auto_open
+    step_status = "step-passed" if step.status == PASSED else "step-failed"
+    step_open = has_content and auto_open
     open_cls = " open" if step_open else ""
+
+    if has_content:
+        onclick = f' onclick=\'toggleStep("{step_id}", "{step_icon_id}")\''
+        icon = f"<span class='step-toggle-icon{open_cls}' id='{step_icon_id}'>&#9654;</span>\n"
+    else:  # nothing to expand: still show the step, but not as a toggle
+        onclick = ""
+        icon = "<span class='step-toggle-icon placeholder'>&#9654;</span>\n"
 
     h: list[str] = [
         f"<div class='step {step_status}'>\n",
-        f"<div class='step-header' onclick='toggleStep(\"{step_id}\", \"{step_icon_id}\")'>\n",
-        f"<span class='step-toggle-icon{open_cls}' id='{step_icon_id}'>&#9654;</span>\n",
+        f"<div class='step-header{'' if has_content else ' no-toggle'}'{onclick}>\n",
+        icon,
         f"<span class='step-name'>{_escape_html(step.name)}</span>\n",
     ]
     if step.events:
@@ -244,10 +270,11 @@ def _render_step_block(
     h.append(f"<div class='step-events' id='{step_id}' style='display: {step_display};'>\n")
 
     for ei, ev in enumerate(step.events):
-        ev_class = f"event-{ev.level.lower()}"
+        ev_class = f"event-{_LOG_LEVEL_RE.sub('', ev.level.lower())}"
         uid = f"{step_id}-{ei}"
-        h.append(f"<div class='event {ev_class}' data-event-level='{ev.level}'>\n")
-        h.append(f"<span class='event-level'>{ev.level}</span>\n")
+        level = _escape_html(ev.level)
+        h.append(f"<div class='event {ev_class}' data-event-level='{level}'>\n")
+        h.append(f"<span class='event-level'>{level}</span>\n")
 
         if ev.sourceFileName or ev.sourceLineNumber is not None:
             loc_parts = []
@@ -267,7 +294,7 @@ def _render_step_block(
                 "<div class='json-container'>\n",
                 "<div class='json-header'>\n",
                 "<span class='json-label'>JSON</span>\n",
-                f"<button class='copy-btn' onclick='copyToClipboard(\"{uid}\")'>&#128203;</button>\n",
+                f"<button class='copy-btn' onclick='copyToClipboard(\"{uid}\", this)'>&#128203;</button>\n",
                 "</div>\n",
                 f"<pre class='event-json' id='json-{uid}' data-original='{data_orig}'>{display_j}</pre>\n",
                 "</div>\n",
@@ -301,15 +328,16 @@ def _render_step_block(
     return h
 
 
+_STATUS_CLASS = {PASSED: "passed", SKIPPED: "skipped", FAILED: "failed", ERROR: "failed"}
+_STATUS_DOT = {PASSED: "pass", SKIPPED: "skip", FAILED: "fail", ERROR: "fail"}
+
+
 def _render_test(result: TestResult, index: int) -> str:
-    status_class = "passed" if result.status == "PASSED" else "failed"
-    status_icon = (
-        "<span class='status-dot pass'></span>"
-        if result.status == "PASSED"
-        else "<span class='status-dot fail'></span>"
-    )
-    auto_open = result.status == "FAILED"
-    total_events = sum(len(s.events) for s in result.steps)
+    status_class = _STATUS_CLASS.get(result.status, "failed")
+    dot_class = _STATUS_DOT.get(result.status, "fail")
+    status_icon = f"<span class='status-dot {dot_class}' title='{_escape_html(result.status)}'></span>"
+    auto_open = result.status in {FAILED, ERROR}
+    total_events = result.eventCount
 
     h: list[str] = [
         f"<div class='test-item {status_class}' data-status='{result.status}'>\n",
@@ -339,7 +367,7 @@ def _render_test(result: TestResult, index: int) -> str:
     if result.failureMessage:
         h += [
             "<div class='failure-message'>\n",
-            "<div class='failure-label'>FAILURE</div>\n",
+            f"<div class='failure-label'>{_FAILURE_LABELS.get(result.status, 'FAILURE')}</div>\n",
             f"<pre>{_escape_html(result.failureMessage)}</pre>\n",
         ]
         if result.stackTrace:
@@ -376,8 +404,9 @@ def _generate_html(
     title: str = "Test Report",
 ) -> str:
     total = len(results)
-    passed = sum(1 for r in results if r.status == "PASSED")
-    failed = total - passed
+    passed = sum(1 for r in results if r.status == PASSED)
+    skipped = sum(1 for r in results if r.status == SKIPPED)
+    failed = total - passed - skipped  # FAILED + ERROR (+ any unknown status)
     total_duration = sum(r.duration for r in results)
     total_events = sum(r.eventCount for r in results)
     has_multiple_classes = len(grouped) > 1
@@ -400,10 +429,14 @@ def _generate_html(
     ]
 
     rate = (passed * 100.0 / total) if total > 0 else 0.0
+    skip_rate = (skipped * 100.0 / total) if total > 0 else 0.0
+    fail_rate = (failed * 100.0 / total) if total > 0 else 0.0
     h.append("<div class='progress-bar-container'>\n")
     h.append(f"<div class='progress-bar pass-bar' style='width:{rate:.1f}%'></div>\n")
+    if skipped > 0:
+        h.append(f"<div class='progress-bar skip-bar' style='width:{skip_rate:.1f}%'></div>\n")
     if failed > 0:
-        h.append(f"<div class='progress-bar fail-bar' style='width:{100.0 - rate:.1f}%'></div>\n")
+        h.append(f"<div class='progress-bar fail-bar' style='width:{fail_rate:.1f}%'></div>\n")
     h.append("</div>\n")
 
     h.append("<div class='stats-row'>\n")
@@ -411,6 +444,8 @@ def _generate_html(
     h.append(f"<span class='stat stat-pass'><strong>{passed}</strong> passed</span>\n")
     if failed > 0:
         h.append(f"<span class='stat stat-fail'><strong>{failed}</strong> failed</span>\n")
+    if skipped > 0:
+        h.append(f"<span class='stat stat-skip'><strong>{skipped}</strong> skipped</span>\n")
     h.append(f"<span class='stat'><strong>{rate:.0f}%</strong> pass rate</span>\n")
     h.append(f"<span class='stat'><strong>{total_duration / 1000:.2f}s</strong> duration</span>\n")
     if total_events > 0:
@@ -420,11 +455,13 @@ def _generate_html(
     h += [
         "<div class='toolbar'>\n",
         "<input type='text' id='searchInput' class='search-input'"
-        " placeholder='Search tests... (* wildcard, ? single char, OR, &quot;phrase&quot;)' onkeyup='filterTests()'>\n",
+        " placeholder='Search tests... (* wildcard, ? single char, OR, &quot;phrase&quot;)' oninput='filterTests()'>\n",
         "<select id='statusFilter' class='status-filter' onchange='filterTests()'>\n",
         "<option value='all'>All</option>\n",
         "<option value='PASSED'>Passed</option>\n",
         "<option value='FAILED'>Failed</option>\n",
+        "<option value='ERROR'>Error</option>\n",
+        "<option value='SKIPPED'>Skipped</option>\n",
         "</select>\n",
         "<select id='logLevelFilter' class='status-filter' onchange='filterLogLevel()'"
         " title='Minimum log level to display'>\n",
@@ -433,6 +470,7 @@ def _generate_html(
         "<option value='INFO'>INFO</option>\n",
         "<option value='WARNING'>WARNING</option>\n",
         "<option value='ERROR'>ERROR</option>\n",
+        "<option value='CRITICAL'>CRITICAL</option>\n",
         "</select>\n",
         "<button class='toolbar-btn' onclick='expandAll()'>Expand All</button>\n",
         "<button class='toolbar-btn' onclick='collapseAll()'>Collapse All</button>\n",
@@ -443,11 +481,11 @@ def _generate_html(
     idx = 0
     if has_multiple_classes:
         for cls_idx, (class_name, class_tests) in enumerate(grouped.items()):
-            cls_passed = sum(1 for t in class_tests if t.status == "PASSED")
+            cls_passed = sum(1 for t in class_tests if t.status == PASSED)
             cls_total = len(class_tests)
-            cls_failed = cls_total - cls_passed
+            cls_failed = sum(1 for t in class_tests if t.status not in {PASSED, SKIPPED})
             cls_status = "class-all-pass" if cls_failed == 0 else "class-has-fail"
-            status_value = "FAILED" if cls_failed else "PASSED"
+            status_value = FAILED if cls_failed else PASSED
             display_name = _format_class_name(class_name)
             h += [
                 f"<div class='test-class-group {cls_status}' data-class-status='{status_value}'>\n",
@@ -508,12 +546,14 @@ body {{
 }}
 .progress-bar {{ transition:width 0.4s ease; }}
 .pass-bar {{ background:var(--green); }}
+.skip-bar {{ background:var(--amber); }}
 .fail-bar {{ background:var(--red); }}
 .stats-row {{ display:flex; gap:24px; margin-top:12px; flex-wrap:wrap; }}
 .stat {{ font-size:13px; color:#d1d5db; }}
 .stat strong {{ color:#fff; font-weight:600; }}
 .stat-pass strong {{ color:var(--green); }}
 .stat-fail strong {{ color:#f87171; }}
+.stat-skip strong {{ color:#fbbf24; }}
 .toolbar {{
   display:flex; gap:8px; padding:12px 32px;
   background:var(--surface); border-bottom:1px solid var(--border);
@@ -568,6 +608,7 @@ body {{
 }}
 .test-item:hover {{ box-shadow:0 1px 4px rgba(0,0,0,.06); }}
 .test-item.passed {{ border-left:3px solid var(--green); }}
+.test-item.skipped {{ border-left:3px solid var(--amber); }}
 .test-item.failed {{ border-left:3px solid var(--red); background:var(--red-bg); }}
 .test-item.hidden {{ display:none !important; }}
 .test-item.highlight {{ background:#fef9c3 !important; border-color:var(--amber) !important; }}
@@ -579,6 +620,7 @@ body {{
 .status-dot {{ width:8px; height:8px; border-radius:50%; flex-shrink:0; }}
 .status-dot.pass {{ background:var(--green); }}
 .status-dot.fail {{ background:var(--red); }}
+.status-dot.skip {{ background:var(--amber); }}
 .test-name-container {{ flex:1; min-width:0; }}
 .test-name {{
   font-weight:600; font-size:13px; color:var(--text);
@@ -639,6 +681,8 @@ body {{
 .step-header:hover {{ filter:brightness(.97); }}
 .step-toggle-icon {{ font-size:9px; transition:transform .2s; color:var(--text-3); flex-shrink:0; }}
 .step-toggle-icon.open {{ transform:rotate(90deg); }}
+.step-toggle-icon.placeholder {{ visibility:hidden; }}
+.step-header.no-toggle {{ cursor:default; }}
 .step-name {{ font-weight:500; flex:1; color:var(--text); }}
 .step-event-count {{
   font-size:10px; font-weight:600; background:var(--blue-bg);
@@ -656,7 +700,8 @@ border-radius:var(--radius); }}
 }}
 .event-info {{ border-left-color:var(--blue); background:var(--blue-bg); }}
 .event-error {{ border-left-color:var(--red); background:var(--red-bg); }}
-.event-warn {{ border-left-color:var(--amber); background:var(--amber-bg); }}
+.event-warn, .event-warning {{ border-left-color:var(--amber); background:var(--amber-bg); }}
+.event-critical {{ border-left-color:#991b1b; background:var(--red-bg); }}
 .event-debug {{ border-left-color:#9ca3af; background:#f9fafb; }}
 .event-trace {{ border-left-color:#c4b5fd; background:#f5f3ff; }}
 .event-level {{
@@ -784,9 +829,9 @@ function _flashBtn(btn) {
   btn.innerHTML = '\u2713'; btn.style.background = '#059669';
   setTimeout(function() { btn.innerHTML = orig; btn.style.background = ''; }, 1500);
 }
-function copyToClipboard(id) {
+function copyToClipboard(id, btn) {
   var el = document.getElementById('json-' + id);
-  if (el) _copyText(el.getAttribute('data-original') || el.textContent, event.target);
+  if (el) _copyText(el.getAttribute('data-original') || el.textContent, btn);
 }
 function expandAll() {
   document.querySelectorAll('.class-tests').forEach(function(d) { d.style.display = 'block'; });
@@ -810,7 +855,7 @@ function collapseAll() {
   });
   document.querySelectorAll('.toggle-icon').forEach(function(i) { i.classList.remove('open'); });
 }
-var _LEVEL_ORDER = {TRACE:0, DEBUG:1, INFO:2, WARNING:3, ERROR:4};
+var _LEVEL_ORDER = {TRACE:0, DEBUG:1, INFO:2, WARN:3, WARNING:3, ERROR:4, CRITICAL:5, FATAL:5};
 function filterLogLevel() {
   var sel = document.getElementById('logLevelFilter').value;
   var minLevel = _LEVEL_ORDER[sel] || 0;
@@ -822,7 +867,8 @@ function filterLogLevel() {
     var step = badge.closest('.step');
     if (!step) return;
     var vis = 0;
-    step.querySelectorAll('.event[data-event-level]').forEach(function(ev) {
+    // only this step's own events: nested sub-steps have their own badge
+    step.querySelectorAll(':scope > .step-events > .event[data-event-level]').forEach(function(ev) {
       if (ev.style.display !== 'none') vis++;
     });
     badge.textContent = vis;
@@ -837,7 +883,7 @@ function globToRegex(pattern) {
   if (!raw) return null;
   // Tokenise: respect double-quoted strings
   var tokens = [];
-  var re = /"([^"]*)"|(OR)|[^\\s]+/gi;
+  var re = /"([^"]*)"|(OR)(?=\\s|$)|[^\\s]+/gi;
   var m;
   while ((m = re.exec(raw)) !== null) {
     if (m[1] !== undefined) tokens.push({type:'literal', val:m[1].toLowerCase()});
@@ -850,18 +896,16 @@ function globToRegex(pattern) {
     if (t.type === 'OR') groups.push([]);
     else groups[groups.length-1].push(t);
   });
-  function escLiteral(s) { return s.replace(/[.+^${}()|[\\]\\\\]/g,'\\\\$&'); }
+  function escLiteral(s) { return s.replace(/[.*?+^${}()|[\\]\\\\]/g,'\\\\$&'); }
   function termToRegex(t) {
     if (t.type === 'literal') return new RegExp(escLiteral(t.val), 'i');
-    // glob: * → .*, ? → .
+    // glob: * → .*, ? → .  (unanchored, so every term is a substring match)
     var p = t.val.split('').map(function(c){
       if (c==='*') return '.*';
       if (c==='?') return '.';
       return escLiteral(c);
     }).join('');
-    // If pattern has no wildcard, do substring match
-    if (!t.val.includes('*') && !t.val.includes('?')) p = '.*' + p + '.*';
-    return new RegExp('^' + p + '$', 'i');
+    return new RegExp(p, 'i');
   }
   return {groups: groups.map(function(g){ return g.map(termToRegex); })};
 }
@@ -889,6 +933,9 @@ function filterTests() {
       item.classList.add('hidden'); item.classList.remove('highlight');
     }
   });
+  document.querySelectorAll('.test-class-group').forEach(function(g) {
+    g.style.display = g.querySelector('.test-item:not(.hidden)') ? '' : 'none';
+  });
   var nr = document.getElementById('no-results');
   if (visible === 0 && (parsed || status !== 'all')) {
     if (!nr) {
@@ -898,4 +945,5 @@ function filterTests() {
     }
   } else if (nr) nr.remove();
 }
+filterLogLevel();
 """

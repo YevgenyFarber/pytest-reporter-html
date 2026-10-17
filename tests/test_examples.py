@@ -53,7 +53,7 @@ def test_order_checkout():
 
     with step("Checkout"):
         logger.info("Submitting checkout request")
-        if os.getenv("CI") != "true":
+        if os.getenv("DEMO_FAILURE") == "true":  # opt-in so the suite stays green by default
             assert False, "Checkout failed — payment declined"  # ← step is marked FAILED
 
 
