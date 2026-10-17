@@ -19,6 +19,7 @@ from pathlib import Path
 
 from custom_python_logger import get_logger
 
+from .const import SESSION_SETUP_KIND, SESSION_TEARDOWN_KIND
 from .helpers import (
     _escape_html,
     _format_class_name,
@@ -104,11 +105,16 @@ def generate_report(report_directory: str, *, title: str = "Test Report") -> str
             return None
 
         test_results: list[TestResult] = []
+        session_results: dict[str, list[TestResult]] = {SESSION_SETUP_KIND: [], SESSION_TEARDOWN_KIND: []}
         for jf in json_files:
             try:
                 with open(jf, encoding="utf-8") as f:
                     root = json.load(f)
-                test_results.append(_parse_test_result(jf.name, root))
+                result = _parse_test_result(jf.name, root)
+                if (kind := root.get("kind")) in session_results:  # session fixtures, not a test
+                    session_results[kind].append(result)
+                else:
+                    test_results.append(result)
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logger.warning(f"  Failed to parse: {jf.name}: {exc}")
 
@@ -122,7 +128,7 @@ def generate_report(report_directory: str, *, title: str = "Test Report") -> str
             grouped.setdefault(tr.className, []).append(tr)
 
         timestamp = _format_ts(datetime.now())
-        html = _generate_html(test_results, grouped, timestamp, title=title)
+        html = _generate_html(test_results, grouped, timestamp, title=title, session_results=session_results)
 
         ts_file = report_dir / f"TestReport_All_{timestamp}.html"
         ts_file.write_text(html, encoding="utf-8")
@@ -328,6 +334,22 @@ def _render_step_block(
     return h
 
 
+def _render_session_block(label: str, kind: str, results: list[TestResult]) -> list[str]:
+    """Render session-scoped fixture steps (all xdist workers merged) as one collapsible block."""
+    if not (steps := sorted((s for r in results for s in r.steps), key=lambda s: s.startTime)):
+        return []
+    failed = any(r.status in {FAILED, ERROR} for r in results)
+    h = [
+        f"<details class='session-block{' session-failed' if failed else ''}'{' open' if failed else ''}>\n",
+        f"<summary class='session-title'>{_escape_html(label)}"
+        f"<span class='session-count'>{len(steps)} fixture{'s' if len(steps) != 1 else ''}</span></summary>\n",
+    ]
+    for si, step in enumerate(steps):
+        h += _render_step_block(step, f"{kind}-{si}", f"{kind}-icon-{si}", failed)
+    h.append("</details>\n")
+    return h
+
+
 _STATUS_CLASS = {PASSED: "passed", SKIPPED: "skipped", FAILED: "failed", ERROR: "failed"}
 _STATUS_DOT = {PASSED: "pass", SKIPPED: "skip", FAILED: "fail", ERROR: "fail"}
 
@@ -402,7 +424,9 @@ def _generate_html(
     grouped: dict[str, list[TestResult]],
     run_timestamp: str,
     title: str = "Test Report",
+    session_results: dict[str, list[TestResult]] | None = None,
 ) -> str:
+    session_results = session_results or {}
     total = len(results)
     passed = sum(1 for r in results if r.status == PASSED)
     skipped = sum(1 for r in results if r.status == SKIPPED)
@@ -478,6 +502,7 @@ def _generate_html(
     ]
 
     h.append("<main class='tests-container'>\n")
+    h += _render_session_block("Session Setup", SESSION_SETUP_KIND, session_results.get(SESSION_SETUP_KIND, []))
     idx = 0
     if has_multiple_classes:
         for cls_idx, (class_name, class_tests) in enumerate(grouped.items()):
@@ -505,6 +530,9 @@ def _generate_html(
         for tr in results:
             h.append(_render_test(tr, idx))
             idx += 1
+    h += _render_session_block(
+        "Session Teardown", SESSION_TEARDOWN_KIND, session_results.get(SESSION_TEARDOWN_KIND, [])
+    )
     h.append("</main>\n")
 
     h += ["<script>\n", _get_javascript(), "</script>\n", "</body>\n</html>"]
@@ -582,6 +610,16 @@ body {{
 .toolbar-btn:hover {{ background:var(--bg); color:var(--text); }}
 .tests-container {{ padding:16px 32px 48px; }}
 .test-class-group {{ margin-bottom:32px; }}
+.session-block {{
+  margin-bottom:24px; background:var(--surface); border:1px solid var(--border);
+  border-left:3px solid var(--blue); border-radius:var(--radius); padding:0 12px 8px;
+}}
+.session-block.session-failed {{ border-left-color:var(--red); }}
+.session-title {{
+  font-size:14px; font-weight:700; color:var(--text-2); padding:10px 0; cursor:pointer;
+  display:flex; align-items:center; gap:10px; user-select:none;
+}}
+.session-count {{ font-weight:400; color:var(--text-3); font-size:12px; }}
 .class-name {{
   font-size:14px; font-weight:700; color:var(--text-2);
   padding:10px 12px; border-bottom:2px solid var(--border);
