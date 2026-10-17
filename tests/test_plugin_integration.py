@@ -139,3 +139,104 @@ class TestPluginEndToEnd:
         passed = [d for d in finals if d["testStatus"] == "PASSED"]
         assert passed, finals
         assert all("failureMessage" not in d for d in passed), passed
+
+
+SESSION_FIXTURE_FILE = """
+import logging
+import pytest
+from pytest_reporter_html import step
+
+log = logging.getLogger("demo")
+log.setLevel(logging.DEBUG)
+
+@pytest.fixture(scope="session")
+def db():
+    with step("connect"):
+        log.info("db up")
+    yield
+    log.info("db down")
+
+@pytest.fixture(scope="session")
+def client(db):
+    log.info("client up")
+    yield
+    log.info("client down")
+
+def test_a(client):
+    log.info("in a")
+
+def test_b(client):
+    pass
+"""
+
+FAILING_SESSION_FIXTURE_FILE = """
+import pytest
+
+@pytest.fixture(scope="session")
+def broken():
+    raise RuntimeError("session boom")
+
+def test_a(broken):
+    pass
+"""
+
+
+def _run_with_report(pytester: pytest.Pytester, source: str):
+    pytester.makepyfile(test_demo=source)
+    out = pytester.path / "out"
+    pytester.runpytest_subprocess(
+        "-p", "no:cacheprovider", "--report-html", "--keep-json", f"--report-html-dir={out}", "--report-html-title=T1"
+    )
+    reports = {
+        json.loads(f.read_text(encoding="utf-8"))["testName"]: json.loads(f.read_text(encoding="utf-8"))
+        for f in (out / "json").glob("*.json")
+    }
+    return reports, (out / "TestReport_Latest.html").read_text(encoding="utf-8")
+
+
+def _all_events(steps: list[dict]) -> list[str]:
+    found = []
+    for s in steps:
+        found += [e["event"] for e in s["events"]]
+        found += _all_events(s.get("subSteps", []))
+    return found
+
+
+class TestSessionBlock:
+    def test_session_fixture_logs_go_to_session_reports(self, pytester: pytest.Pytester) -> None:
+        reports, _ = _run_with_report(pytester, SESSION_FIXTURE_FILE)
+        setup, teardown = reports["session_setup"], reports["session_teardown"]
+        assert setup["kind"] == "session_setup"
+        assert teardown["kind"] == "session_teardown"
+        assert _names(setup["steps"]) == ["Fixture: db", "Fixture: client"]
+        assert _names(setup["steps"][0]["subSteps"]) == ["Step 1: connect"]
+        assert _all_events(setup["steps"]) == ["db up", "client up"]
+        # teardown order is the reverse of setup
+        assert _names(teardown["steps"]) == ["Fixture: client", "Fixture: db"]
+        assert _all_events(teardown["steps"]) == ["client down", "db down"]
+
+    def test_session_logs_are_not_attributed_to_tests(self, pytester: pytest.Pytester) -> None:
+        reports, _ = _run_with_report(pytester, SESSION_FIXTURE_FILE)
+        assert _all_events(reports["test_a"]["steps"]) == ["in a"]
+        assert _all_events(reports["test_b"]["steps"]) == []
+
+    def test_html_has_blocks_and_counts_only_tests(self, pytester: pytest.Pytester) -> None:
+        _, html = _run_with_report(pytester, SESSION_FIXTURE_FILE)
+        assert html.index("Session Setup") < html.index("test_a") < html.index("Session Teardown")
+        assert "<strong>2</strong> tests" in html
+        assert "db up" in html
+        assert "db down" in html
+
+    def test_no_session_fixtures_means_no_block(self, session_run) -> None:
+        _, reports, out = session_run
+        html = (out / "TestReport_Latest.html").read_text(encoding="utf-8")
+        assert "session_setup" not in reports
+        assert "Session Setup" not in html
+
+    def test_failing_session_fixture_is_marked(self, pytester: pytest.Pytester) -> None:
+        reports, html = _run_with_report(pytester, FAILING_SESSION_FIXTURE_FILE)
+        assert reports["session_setup"]["testStatus"] == "FAILED"
+        assert reports["session_setup"]["steps"][0]["status"] == "FAILED"
+        assert "session boom" in reports["session_setup"]["steps"][0]["failureMessage"]
+        assert reports["test_a"]["testStatus"] == "ERROR"
+        assert "session-failed" in html

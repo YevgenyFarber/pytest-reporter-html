@@ -26,3 +26,8 @@ class TestStatus(IntEnum):
     SKIPPED = 1
     FAILED = 2
     ERROR = 3
+
+
+# ``kind`` markers written to the JSON of session-scoped fixture reports (not tests)
+SESSION_SETUP_KIND = "session_setup"
+SESSION_TEARDOWN_KIND = "session_teardown"

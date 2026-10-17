@@ -95,12 +95,15 @@ class JsonReport:
     testName: str | None = None
     failureMessage: str | None = None
     stackTrace: str | None = None
+    kind: str | None = None
 
     def to_dict(self) -> dict:
         d: dict = {
             "steps": [s.to_dict() for s in self.steps],
             "testStatus": self.testStatus,
         }
+        if self.kind:
+            d["kind"] = self.kind
         if self.className:
             d["className"] = self.className
         if self.testName:
@@ -131,11 +134,13 @@ class TestReporter:
         test_name: str,
         class_name: str | None,
         output_dir: str,
+        kind: str | None = None,
     ) -> None:
         self.test_name = test_name
         self.output_dir = output_dir
+        self._drop_empty_phases = kind is not None
         self._timestamp = os.environ.get("REPORT_TIMESTAMP", "").strip() or str(_now_millis())
-        self._report = JsonReport(className=class_name)
+        self._report = JsonReport(className=class_name, kind=kind)
         self._current_step: ReportStep | None = None
         self._step_stack: list[ReportStep] = []
         self._number_parts: list[int] = [0]
@@ -145,6 +150,14 @@ class TestReporter:
     @property
     def report(self) -> JsonReport:
         return self._report
+
+    @property
+    def is_session(self) -> bool:
+        return self._report.kind is not None
+
+    @property
+    def has_content(self) -> bool:
+        return bool(self._report.steps or self._current_step)
 
     @property
     def current_step(self) -> ReportStep | None:
@@ -201,7 +214,8 @@ class TestReporter:
         if is_phase and self._report.steps:
             last = self._report.steps[-1]
             is_empty = not last.events and not last.sub_steps
-            if last.name in {"Setup", "Teardown"} and is_empty and last.status == "PASSED":
+            droppable = self._drop_empty_phases or last.name in {"Setup", "Teardown"}
+            if droppable and is_empty and last.status == "PASSED":
                 self._report.steps.pop()
 
     def add_event(self, event: ReportEvent) -> None:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import shutil
+import traceback
 from collections.abc import Callable, Generator
 from typing import Any
 
@@ -12,7 +13,7 @@ import pytest
 from _pytest.python import Function
 from custom_python_logger import get_logger
 
-from .const import DEFAULT_OUTPUT_DIR, DEFAULT_TITLE, TestStatus
+from .const import DEFAULT_OUTPUT_DIR, DEFAULT_TITLE, SESSION_SETUP_KIND, SESSION_TEARDOWN_KIND, TestStatus
 from .helpers import _extract_failure, _extract_skip_reason, _module_label, _now_millis, _worse
 from .html_report import generate_report
 from .reporter import ReportEvent, TestReporter, _active_reporter
@@ -23,6 +24,18 @@ _reporter_key: pytest.StashKey[TestReporter] = pytest.StashKey()
 _status_key: pytest.StashKey[str] = pytest.StashKey()
 _failure_key: pytest.StashKey[tuple[str, str]] = pytest.StashKey()
 _handler_key: pytest.StashKey[logging.Handler] = pytest.StashKey()
+_session_key: pytest.StashKey[_SessionReporters] = pytest.StashKey()
+_SESSION_SCOPE = "session"
+
+
+class _SessionReporters:
+    """Reporters for session-scoped fixture setup/teardown, which belong to no single test."""
+
+    def __init__(self, output_dir: str) -> None:
+        self.setup = TestReporter("session_setup", None, output_dir, kind=SESSION_SETUP_KIND)
+        self.teardown = TestReporter("session_teardown", None, output_dir, kind=SESSION_TEARDOWN_KIND)
+        # fixturedef id -> reporter that was active before its teardown started
+        self.resume: dict[int, TestReporter | None] = {}
 
 
 class _ReportLogHandler(logging.Handler):
@@ -32,9 +45,15 @@ class _ReportLogHandler(logging.Handler):
         super().__init__()
         self._reporter = reporter
 
+    def _target(self) -> TestReporter:
+        # a session fixture running inside this test has swapped in the session reporter
+        if (active := _active_reporter.get()) is not None and active.is_session:
+            return active
+        return self._reporter
+
     def emit(self, record: logging.LogRecord) -> None:
         try:
-            self._reporter.add_event(
+            self._target().add_event(
                 ReportEvent(
                     startTime=_now_millis(),
                     level=record.levelname,
@@ -145,6 +164,50 @@ def _record_teardown(item: Function, reporter: TestReporter, report: pytest.Test
     del item.stash[_reporter_key]
 
 
+def _session_reporters(config: pytest.Config) -> _SessionReporters:
+    if (reporters := config.stash.get(_session_key, None)) is None:
+        output_dir = config.getoption("--report-html-dir", default=DEFAULT_OUTPUT_DIR)
+        reporters = config.stash[_session_key] = _SessionReporters(output_dir)
+    return reporters
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_fixture_setup(fixturedef: pytest.FixtureDef, request: pytest.FixtureRequest) -> Generator[None, Any, None]:
+    if fixturedef.scope != _SESSION_SCOPE:
+        yield
+        return
+
+    reporters = _session_reporters(request.config)
+    previous = _active_reporter.get()
+    _active_reporter.set(reporters.setup)
+    reporters.setup.begin_phase(f"Fixture: {fixturedef.argname}")
+    outcome = yield
+    if outcome.excinfo is not None:
+        exc_type, exc, exc_tb = outcome.excinfo
+        reporters.setup.end_phase(str(exc), "".join(traceback.format_exception(exc_type, exc, exc_tb)))
+    else:
+        reporters.setup.end_phase()
+    _active_reporter.set(previous)
+
+    # runs before the fixture's own teardown: finalizers are popped last-in-first-out
+    fixturedef.addfinalizer(lambda: _begin_session_teardown(reporters, fixturedef))
+
+
+def _begin_session_teardown(reporters: _SessionReporters, fixturedef: pytest.FixtureDef) -> None:
+    reporters.resume[id(fixturedef)] = _active_reporter.get()
+    _active_reporter.set(reporters.teardown)
+    reporters.teardown.begin_phase(f"Fixture: {fixturedef.argname}")
+
+
+def pytest_fixture_post_finalizer(fixturedef: pytest.FixtureDef, request: pytest.FixtureRequest) -> None:
+    if fixturedef.scope != _SESSION_SCOPE:
+        return
+    reporters = _session_reporters(request.config)
+    if (key := id(fixturedef)) in reporters.resume:  # may fire more than once, or without a marker
+        reporters.teardown.end_phase()
+        _active_reporter.set(reporters.resume.pop(key))
+
+
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item: Function) -> Generator[None, Any, None]:
     outcome = yield
@@ -163,8 +226,20 @@ def pytest_runtest_teardown(item: pytest.Item) -> None:
         reporter.begin_phase("Teardown")
 
 
+def _write_session_reports(config: pytest.Config) -> None:
+    if (reporters := config.stash.get(_session_key, None)) is None:
+        return
+    for reporter in (reporters.setup, reporters.teardown):
+        if reporter.has_content:
+            failed = any(s.status == TestStatus.FAILED.name for s in reporter.report.steps)
+            reporter.finalize(status=TestStatus.FAILED.name if failed else TestStatus.PASSED.name)
+
+
+# trylast: the runner tears down any leftover session fixtures (e.g. after -x) in its own sessionfinish
+@pytest.hookimpl(trylast=True)
 def pytest_sessionfinish(session: pytest.Session) -> None:
     config = session.config
+    _write_session_reports(config)
     if not config.getoption("--report-html", default=False):
         return
     if hasattr(config, "workerinput"):  # xdist worker: only the controller aggregates and cleans up
